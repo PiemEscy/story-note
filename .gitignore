@@ -1,0 +1,19 @@
+node_modules
+dist
+out
+release
+.DS_Store
+.eslintcache
+*.log*
+test-results
+playwright-report
+blob-report
+
+# secrets / local data — never commit (see .claude/rules/git-commit-style.md)
+.env
+.env.*
+*.sqlite
+*.sqlite3
+*.db
+.claude
+CLAUDE.md
