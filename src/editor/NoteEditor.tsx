@@ -1,23 +1,21 @@
-import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableHeader } from '@tiptap/extension-table-header';
-import { TableCell } from '@tiptap/extension-table-cell';
+import { EditorContent } from '@tiptap/react';
+import type { Editor } from '@tiptap/react';
 
-// Scaffold only — toolbar, persistence, and content_plain sync land in Phase 4.
-const initialContent = '<p>StoryNote editor scaffold — TipTap is wired up.</p>';
+interface NoteEditorProps {
+  editor: Editor | null;
+}
 
-function NoteEditor(): React.JSX.Element {
-  const editor = useEditor({
-    extensions: [StarterKit, Table, TableRow, TableHeader, TableCell],
-    content: initialContent,
-  });
+// Renders the TipTap ProseMirror content area. The editor instance itself
+// is created by useNoteEditor (src/editor/useNoteEditor.ts) and shared with
+// EditorToolbar, so both stay in sync with the same document — this
+// component is purely presentational.
+function NoteEditor({ editor }: NoteEditorProps): React.JSX.Element | null {
+  if (!editor) return null;
 
   return (
     <EditorContent
       editor={editor}
-      className="w-full max-w-md rounded border border-neutral-700 p-3 text-left"
+      className="text-[16.5px] leading-[1.75] text-[#14181F] [&_.tiptap]:min-h-[40vh] [&_.tiptap]:outline-none"
     />
   );
 }

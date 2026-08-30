@@ -1,5 +1,15 @@
 @import 'tailwindcss';
 
+/* Font stacks matching .claude/ui/storynote-ui-reference.html's typographic
+   roles (UI / note content / monospace), using system fonts rather than the
+   reference's Google Fonts links — this app is offline-first (architecture.md)
+   and the CSP in src/index.html blocks loading remote stylesheets anyway. */
+@theme {
+  --font-ui: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-content: Georgia, 'Cambria', 'Times New Roman', serif;
+  --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+}
+
 html,
 body,
 #root {
@@ -7,7 +17,87 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1e1f22;
-  color: #e6e6e6;
+  font-family: var(--font-ui);
+  /* Matches the UI reference's light-theme --bg-app / --text-primary; full
+     light/dark theming (data-theme switching) is Phase 5. */
+  background: #f7f8fa;
+  color: #14181f;
+  font-size: 14px;
+}
+
+/* TipTap's rendered content area (.tiptap, set by @tiptap/core itself) —
+   mirrors .claude/ui/storynote-ui-reference.html's .note-body rules. Not
+   expressible as Tailwind utility classes on the wrapper since these are
+   plain descendant-tag selectors for arbitrary rich-text output, not a
+   fixed set of elements this app authors directly. */
+.tiptap {
+  font-family: var(--font-content);
+}
+/* Levels 2-3 only — StarterKit is constrained to these in useNoteEditor.ts
+   ("Heading 1"/"Heading 2" in the toolbar), matching the UI reference's own
+   .note-body h2/h3 rules exactly; level 1 is reserved for the note title
+   input, not in-content headings, so there's no .tiptap h1 rule. */
+.tiptap h2 {
+  font-family: var(--font-ui);
+  font-size: 19px;
+  font-weight: 700;
+  margin: 26px 0 8px;
+  letter-spacing: -0.01em;
+}
+.tiptap h3 {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 20px 0 6px;
+}
+.tiptap p {
+  margin: 0 0 14px;
+}
+.tiptap ul,
+.tiptap ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+.tiptap ul {
+  list-style: disc;
+}
+.tiptap ol {
+  list-style: decimal;
+}
+.tiptap li {
+  margin-bottom: 4px;
+}
+.tiptap li p {
+  margin: 0;
+}
+.tiptap strong {
+  font-weight: 600;
+}
+.tiptap s {
+  opacity: 0.6;
+}
+.tiptap table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 18px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.tiptap th,
+.tiptap td {
+  border: 1px solid #e2e5ea;
+  padding: 7px 10px;
+  text-align: left;
+}
+.tiptap th {
+  background: #ebeef2;
+  font-weight: 600;
+  font-size: 12px;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #8992a0;
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
