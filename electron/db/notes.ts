@@ -61,8 +61,14 @@ export function updateNote(db: Database.Database, id: number, input: UpdateNoteI
   return getNoteById(db, id)!;
 }
 
-export type NoteSortField = 'created_at' | 'updated_at' | 'title' | 'label';
-export type SortDirection = 'asc' | 'desc';
+// The runtime-checkable form of each type below — the single source of
+// truth for validating a value arriving over IPC (see electron/ipc/
+// validation.ts), rather than duplicating this list at the IPC boundary.
+export const NOTE_SORT_FIELDS = ['created_at', 'updated_at', 'title', 'label'] as const;
+export type NoteSortField = (typeof NOTE_SORT_FIELDS)[number];
+
+export const SORT_DIRECTIONS = ['asc', 'desc'] as const;
+export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 
 export interface ListNotesOptions {
   sortBy?: NoteSortField;

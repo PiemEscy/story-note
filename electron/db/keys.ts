@@ -8,7 +8,16 @@ import { getDatabasePath } from './getDatabasePath';
 import { getKeyMetadataPath } from './getKeyMetadataPath';
 
 const CREDENTIAL_SERVICE = 'storynote';
-const CREDENTIAL_ACCOUNT = 'sqlcipher-key';
+// e2e tests launch the real, unmodified app (via Playwright's electron.launch,
+// not through CredentialIdentity overrides — those only reach unit-tested
+// functions, not electron/main.ts's actual call chain) — including its real
+// call into getKeyFromOS(). Without this, every e2e run would read/write the
+// same real Windows Credential Manager entry a genuine install uses. Opt-in
+// only, via an env var no real user's environment would ever set; production
+// behavior (the env var absent) is completely unchanged.
+const CREDENTIAL_ACCOUNT = process.env.STORYNOTE_E2E_CREDENTIAL_SUFFIX
+  ? `sqlcipher-key-e2e-${process.env.STORYNOTE_E2E_CREDENTIAL_SUFFIX}`
+  : 'sqlcipher-key';
 const KEY_BYTE_LENGTH = 32; // 256-bit, per ADR-001
 // @node-rs/argon2 declares Algorithm as an ambient `const enum`, which
 // TypeScript's `isolatedModules` refuses to inline across files — importing
