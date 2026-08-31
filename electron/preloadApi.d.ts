@@ -1,5 +1,5 @@
 import type { CreateLabelInput, UpdateLabelInput } from './db/labels';
-import type { CreateNoteInput, ListNotesOptions, UpdateNoteInput } from './db/notes';
+import type { CreateNoteInput, ListNotesOptions, NoteCounts, UpdateNoteInput } from './db/notes';
 import type { LabelRow } from './db/types';
 import type { PublicNoteRow } from './ipc/notesHandlers';
 import type { IpcResult } from './ipc/types';
@@ -12,6 +12,7 @@ export interface StoryNoteAPI {
     list: (options?: ListNotesOptions) => Promise<IpcResult<PublicNoteRow[]>>;
     listArchived: () => Promise<IpcResult<PublicNoteRow[]>>;
     listTrashed: () => Promise<IpcResult<PublicNoteRow[]>>;
+    getCounts: () => Promise<IpcResult<NoteCounts>>;
     setPinned: (id: number, isPinned: boolean) => Promise<IpcResult<void>>;
     setArchived: (id: number, isArchived: boolean) => Promise<IpcResult<void>>;
     delete: (id: number) => Promise<IpcResult<void>>;
@@ -24,7 +25,7 @@ export interface StoryNoteAPI {
     list: () => Promise<IpcResult<LabelRow[]>>;
     update: (input: UpdateLabelInput & { id: number }) => Promise<IpcResult<LabelRow>>;
     delete: (id: number) => Promise<IpcResult<void>>;
-    assign: (noteId: number, labelId: number | null) => Promise<IpcResult<void>>;
+    assign: (noteId: number, labelId: number | null) => Promise<IpcResult<PublicNoteRow>>;
   };
   settings: {
     get: (key: string) => Promise<IpcResult<string | undefined>>;

@@ -11,6 +11,7 @@ const storyNoteAPI = {
     list: (options?: unknown) => ipcRenderer.invoke(IPC_CHANNELS.notes.list, options),
     listArchived: () => ipcRenderer.invoke(IPC_CHANNELS.notes.listArchived),
     listTrashed: () => ipcRenderer.invoke(IPC_CHANNELS.notes.listTrashed),
+    getCounts: () => ipcRenderer.invoke(IPC_CHANNELS.notes.getCounts),
     setPinned: (id: number, isPinned: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.notes.setPinned, { id, isPinned }),
     setArchived: (id: number, isArchived: boolean) =>

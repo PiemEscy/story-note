@@ -17,6 +17,7 @@ export const IPC_CHANNELS = {
     list: 'storynote:notes:list',
     listArchived: 'storynote:notes:list-archived',
     listTrashed: 'storynote:notes:list-trashed',
+    getCounts: 'storynote:notes:get-counts',
     setPinned: 'storynote:notes:set-pinned',
     setArchived: 'storynote:notes:set-archived',
     delete: 'storynote:notes:delete',

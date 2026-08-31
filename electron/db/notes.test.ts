@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createNote,
   getNoteById,
+  getNoteCounts,
   listArchivedNotes,
   listNotes,
   listTrashedNotes,
@@ -263,6 +264,55 @@ describe('listNotes sorting', () => {
 
       const result = listNotes(db).map((n) => n.id);
       expect(result).toEqual([newer.id, older.id]);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('getNoteCounts', () => {
+  it('counts active, archived, and trashed notes separately', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      createNote(db, { title: 'active' });
+      const archived = createNote(db, { title: 'archived' });
+      setArchived(db, archived.id, true);
+      const trashed = createNote(db, { title: 'trashed' });
+      softDeleteNote(db, trashed.id);
+
+      expect(getNoteCounts(db)).toMatchObject({ active: 1, archived: 1, trash: 1 });
+    } finally {
+      close();
+    }
+  });
+
+  it('counts notes per label, scoped to active notes only', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      db.prepare('INSERT INTO labels (id, name) VALUES (1, ?), (2, ?)').run('Work', 'Personal');
+      createNote(db, { title: 'Work note 1', labelId: 1 });
+      createNote(db, { title: 'Work note 2', labelId: 1 });
+      createNote(db, { title: 'Personal note', labelId: 2 });
+      createNote(db, { title: 'No label' });
+
+      // An archived note with a label shouldn't count toward that label's
+      // active count — matches useNoteStore.ts's labelFilter, which only
+      // ever narrows the 'active' list.
+      const archivedWorkNote = createNote(db, { title: 'Archived work note', labelId: 1 });
+      setArchived(db, archivedWorkNote.id, true);
+
+      expect(getNoteCounts(db).byLabel).toEqual({ 1: 2, 2: 1 });
+    } finally {
+      close();
+    }
+  });
+
+  it('omits labels with zero active notes rather than including a 0 entry', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      db.prepare('INSERT INTO labels (id, name) VALUES (1, ?)').run('Unused');
+
+      expect(getNoteCounts(db).byLabel).toEqual({});
     } finally {
       close();
     }

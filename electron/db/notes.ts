@@ -101,6 +101,53 @@ export function listNotes(db: Database.Database, options: ListNotesOptions = {})
     .all() as NoteRow[];
 }
 
+export interface NoteCounts {
+  active: number;
+  archived: number;
+  trash: number;
+  // Per-label counts, scoped to active (non-archived, non-trashed) notes
+  // only — matching what clicking a label in the Sidebar actually filters
+  // to (useNoteStore.ts's labelFilter narrows the 'active' list). Labels
+  // with zero active notes are simply absent, not present with a 0 value.
+  byLabel: Record<number, number>;
+}
+
+// Sidebar's nav-item/label-item counts (storynote-ui-reference.html's
+// .nav-count) — one query per bucket rather than a single UNION, since each
+// has a distinct WHERE clause and this only runs when the sidebar's counts
+// need refreshing, not on every keystroke.
+export function getNoteCounts(db: Database.Database): NoteCounts {
+  const active = (
+    db
+      .prepare('SELECT COUNT(*) as count FROM notes WHERE deleted_at IS NULL AND is_archived = 0')
+      .get() as { count: number }
+  ).count;
+  const archived = (
+    db
+      .prepare('SELECT COUNT(*) as count FROM notes WHERE deleted_at IS NULL AND is_archived = 1')
+      .get() as { count: number }
+  ).count;
+  const trash = (
+    db.prepare('SELECT COUNT(*) as count FROM notes WHERE deleted_at IS NOT NULL').get() as {
+      count: number;
+    }
+  ).count;
+
+  const labelRows = db
+    .prepare(
+      `SELECT label_id, COUNT(*) as count FROM notes
+       WHERE deleted_at IS NULL AND is_archived = 0 AND label_id IS NOT NULL
+       GROUP BY label_id`,
+    )
+    .all() as { label_id: number; count: number }[];
+  const byLabel: Record<number, number> = {};
+  for (const row of labelRows) {
+    byLabel[row.label_id] = row.count;
+  }
+
+  return { active, archived, trash, byLabel };
+}
+
 export function listArchivedNotes(db: Database.Database): NoteRow[] {
   return db
     .prepare(

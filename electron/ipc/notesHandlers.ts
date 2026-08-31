@@ -4,6 +4,7 @@ import type Database from 'better-sqlite3-multiple-ciphers';
 import {
   createNote,
   getNoteById,
+  getNoteCounts,
   listArchivedNotes,
   listNotes,
   listTrashedNotes,
@@ -14,6 +15,7 @@ import {
   softDeleteNote,
   updateNote,
 } from '../db/notes';
+import type { NoteCounts } from '../db/notes';
 import type { NoteRow } from '../db/types';
 import { IPC_CHANNELS } from './channels';
 import { toIpcResult, toIpcResultAsync } from './types';
@@ -48,7 +50,7 @@ export interface PublicNoteRow {
   deleted_at: string | null;
 }
 
-function toPublicNote(note: NoteRow): PublicNoteRow {
+export function toPublicNote(note: NoteRow): PublicNoteRow {
   return {
     id: note.id,
     title: note.title,
@@ -121,6 +123,10 @@ export function handleListArchived(db: Database.Database): IpcResult<PublicNoteR
 
 export function handleListTrashed(db: Database.Database): IpcResult<PublicNoteRow[]> {
   return toIpcResult(() => listTrashedNotes(db).map(toPublicNote));
+}
+
+export function handleGetCounts(db: Database.Database): IpcResult<NoteCounts> {
+  return toIpcResult(() => getNoteCounts(db));
 }
 
 export function handleSetPinned(db: Database.Database, input: unknown): IpcResult<void> {
@@ -216,6 +222,7 @@ export function registerNotesHandlers(db: Database.Database): void {
   ipcMain.handle(IPC_CHANNELS.notes.list, (_event, input) => handleList(db, input));
   ipcMain.handle(IPC_CHANNELS.notes.listArchived, () => handleListArchived(db));
   ipcMain.handle(IPC_CHANNELS.notes.listTrashed, () => handleListTrashed(db));
+  ipcMain.handle(IPC_CHANNELS.notes.getCounts, () => handleGetCounts(db));
   ipcMain.handle(IPC_CHANNELS.notes.setPinned, (_event, input) => handleSetPinned(db, input));
   ipcMain.handle(IPC_CHANNELS.notes.setArchived, (_event, input) => handleSetArchived(db, input));
   ipcMain.handle(IPC_CHANNELS.notes.delete, (_event, input) => handleDelete(db, input));

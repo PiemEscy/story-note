@@ -6,6 +6,7 @@ import {
   handleDelete,
   handleExport,
   handleGet,
+  handleGetCounts,
   handleList,
   handleListArchived,
   handleListTrashed,
@@ -286,6 +287,26 @@ describe('handleExport', () => {
     try {
       const result = await handleExport(db, 999999, fakeExportDeps());
       expect(result.ok).toBe(false);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('handleGetCounts', () => {
+  it('returns active/archived/trash/byLabel counts', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      handleCreate(db, { title: 'active' });
+      const archived = handleCreate(db, { title: 'archived' });
+      if (archived.ok) handleSetArchived(db, { id: archived.data.id, isArchived: true });
+
+      const result = handleGetCounts(db);
+
+      expect(result).toEqual({
+        ok: true,
+        data: { active: 1, archived: 1, trash: 0, byLabel: {} },
+      });
     } finally {
       close();
     }
