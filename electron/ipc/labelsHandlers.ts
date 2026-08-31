@@ -5,6 +5,8 @@ import type { LabelRow } from '../db/types';
 import { IPC_CHANNELS } from './channels';
 import { toIpcResult } from './types';
 import type { IpcResult } from './types';
+import { toPublicNote } from './notesHandlers';
+import type { PublicNoteRow } from './notesHandlers';
 import {
   isRecord,
   optionalNullableNumber,
@@ -47,7 +49,7 @@ export function handleDelete(db: Database.Database, input: unknown): IpcResult<v
   return toIpcResult(() => deleteLabel(db, requireNumber(input, 'id')));
 }
 
-export function handleAssign(db: Database.Database, input: unknown): IpcResult<void> {
+export function handleAssign(db: Database.Database, input: unknown): IpcResult<PublicNoteRow> {
   return toIpcResult(() => {
     if (!isRecord(input)) {
       throw new Error('input must be an object');
@@ -57,7 +59,7 @@ export function handleAssign(db: Database.Database, input: unknown): IpcResult<v
     if (labelId === undefined) {
       throw new Error('labelId must be a number or null');
     }
-    assignLabelToNote(db, noteId, labelId);
+    return toPublicNote(assignLabelToNote(db, noteId, labelId));
   });
 }
 

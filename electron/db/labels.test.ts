@@ -98,11 +98,11 @@ describe('assignLabelToNote', () => {
         note.id,
       );
 
-      assignLabelToNote(db, note.id, label.id);
+      const result = assignLabelToNote(db, note.id, label.id);
 
-      const result = getNoteById(db, note.id)!;
       expect(result.label_id).toBe(label.id);
       expect(result.updated_at).not.toBe('2020-01-01 00:00:00');
+      expect(getNoteById(db, note.id)).toEqual(result);
     } finally {
       close();
     }
@@ -114,9 +114,9 @@ describe('assignLabelToNote', () => {
       const label = createLabel(db, { name: 'Work' });
       const note = createNote(db, { labelId: label.id });
 
-      assignLabelToNote(db, note.id, null);
+      const result = assignLabelToNote(db, note.id, null);
 
-      expect(getNoteById(db, note.id)!.label_id).toBeNull();
+      expect(result.label_id).toBeNull();
     } finally {
       close();
     }

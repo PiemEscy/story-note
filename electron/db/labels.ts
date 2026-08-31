@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3-multiple-ciphers';
-import type { LabelRow } from './types';
+import type { LabelRow, NoteRow } from './types';
+import { getNoteById } from './notes';
 
 export interface CreateLabelInput {
   name: string;
@@ -51,13 +52,16 @@ export function deleteLabel(db: Database.Database, id: number): void {
 // Assigns (or clears, with labelId = null) a label on a note. A label
 // change is one of the edits that bumps updated_at (schema.md), without
 // touching title/content — see notes.ts's updateNote for the combined form.
+// Returns the updated row (like updateLabel/updateNote) so callers can
+// update their cached copy without a stale updated_at/label_id.
 export function assignLabelToNote(
   db: Database.Database,
   noteId: number,
   labelId: number | null,
-): void {
+): NoteRow {
   db.prepare('UPDATE notes SET label_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
     labelId,
     noteId,
   );
+  return getNoteById(db, noteId)!;
 }

@@ -27,9 +27,10 @@ describe('labels IPC handlers — happy path', () => {
 
       const note = handleCreateNote(db, {});
       if (!note.ok) throw new Error('setup failed');
-      expect(handleAssign(db, { noteId: note.data.id, labelId })).toEqual({
+      const assigned = handleAssign(db, { noteId: note.data.id, labelId });
+      expect(assigned).toEqual({
         ok: true,
-        data: undefined,
+        data: expect.objectContaining({ id: note.data.id, label_id: labelId }),
       });
       const fetched = handleGetNote(db, note.data.id);
       if (fetched.ok) expect(fetched.data?.label_id).toBe(labelId);
