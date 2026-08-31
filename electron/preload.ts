@@ -36,6 +36,9 @@ const storyNoteAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.settings.set, { key, value }),
     delete: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.settings.delete, key),
   },
+  search: {
+    query: (query: string) => ipcRenderer.invoke(IPC_CHANNELS.search.query, query),
+  },
 };
 
 if (process.contextIsolated) {

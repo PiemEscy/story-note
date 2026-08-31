@@ -54,6 +54,8 @@ function NoteList(): React.JSX.Element | null {
   const notes = useNoteStore((state) => state.notes);
   const filter = useNoteStore((state) => state.filter);
   const labelFilter = useNoteStore((state) => state.labelFilter);
+  const searchQuery = useNoteStore((state) => state.searchQuery);
+  const searchResults = useNoteStore((state) => state.searchResults);
   const activeNoteId = useNoteStore((state) => state.activeNoteId);
   const isLoading = useNoteStore((state) => state.isLoading);
   const selectNote = useNoteStore((state) => state.selectNote);
@@ -68,12 +70,17 @@ function NoteList(): React.JSX.Element | null {
 
   const [pendingPurgeId, setPendingPurgeId] = useState<number | null>(null);
 
+  const isSearching = searchQuery.trim() !== '';
+
   // Trash always keeps its own dedicated Restore/Delete-forever row UI (it
   // doesn't fit the list/table/card metaphors the other views use — there's
   // nothing in storynote-ui-reference.html for "Trash, but as a grid"), so
   // it's treated as the Sidebar layout regardless of whatever view is
-  // selected elsewhere.
-  const effectiveView: ViewMode = filter === 'trash' ? 'sidebar' : view;
+  // selected elsewhere. A search in progress bypasses that — search results
+  // never include trashed notes (searchNotes() excludes deleted_at), so
+  // there's nothing for the trash-only UI to show even if `filter` still
+  // happens to be 'trash' underneath an active query.
+  const effectiveView: ViewMode = filter === 'trash' && !isSearching ? 'sidebar' : view;
   const isWideView = effectiveView !== 'sidebar';
 
   // List/Details/Grid/Large Grid have no inline list-alongside-editor
@@ -95,9 +102,15 @@ function NoteList(): React.JSX.Element | null {
 
   // Sidebar's Labels section filters the 'active' list down to one label,
   // client-side — the notes for 'active' are already fetched in full, so
-  // this doesn't need its own IPC/query support.
-  const displayedNotes =
-    labelFilter !== null ? notes.filter((note) => note.label_id === labelFilter) : notes;
+  // this doesn't need its own IPC/query support. A search query takes over
+  // the pane entirely, cutting across whatever filter/label was selected —
+  // same precedence the Sidebar's search input has over nav/label clicks
+  // (see useNoteStore's setFilter/setLabelFilter, which clear searchQuery).
+  const displayedNotes = isSearching
+    ? searchResults
+    : labelFilter !== null
+      ? notes.filter((note) => note.label_id === labelFilter)
+      : notes;
   const filterLabelName =
     labelFilter !== null
       ? (labels.find((label) => label.id === labelFilter)?.name ?? 'Label')
@@ -130,7 +143,9 @@ function NoteList(): React.JSX.Element | null {
     >
       <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface-raised)] px-3.5 py-3">
         <h2 className="m-0 min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">
-          {filterLabelName ?? FILTER_TITLES[filter]}
+          {isSearching
+            ? `Search: "${searchQuery.trim()}"`
+            : (filterLabelName ?? FILTER_TITLES[filter])}
         </h2>
         <span className="flex-1" />
         <button
@@ -178,21 +193,24 @@ function NoteList(): React.JSX.Element | null {
         {!isLoading && displayedNotes.length === 0 && (
           <div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-[var(--text-tertiary)]">
             <h3 className="m-0 text-[13.5px] font-semibold text-[var(--text-secondary)]">
-              {filter === 'trash' ? 'Trash is empty' : 'No notes yet'}
+              {isSearching ? 'No matches' : filter === 'trash' ? 'Trash is empty' : 'No notes yet'}
             </h3>
             <p className="m-0 max-w-[220px] text-xs">
-              {filterLabelName
-                ? 'No notes have this label yet.'
-                : filter === 'active'
-                  ? 'Create your first note to start capturing ideas.'
-                  : filter === 'archived'
-                    ? 'Archived notes will show up here.'
-                    : 'Deleted notes will show up here.'}
+              {isSearching
+                ? 'No notes match your search.'
+                : filterLabelName
+                  ? 'No notes have this label yet.'
+                  : filter === 'active'
+                    ? 'Create your first note to start capturing ideas.'
+                    : filter === 'archived'
+                      ? 'Archived notes will show up here.'
+                      : 'Deleted notes will show up here.'}
             </p>
           </div>
         )}
 
-        {filter === 'trash' &&
+        {!isSearching &&
+          filter === 'trash' &&
           displayedNotes.map((note) => (
             <div
               key={note.id}
@@ -223,15 +241,16 @@ function NoteList(): React.JSX.Element | null {
             </div>
           ))}
 
-        {filter !== 'trash' && (effectiveView === 'sidebar' || effectiveView === 'list') && (
-          <NoteListRows
-            notes={displayedNotes}
-            activeNoteId={activeNoteId}
-            labels={labels}
-            onSelect={handleSelect}
-          />
-        )}
-        {filter !== 'trash' && effectiveView === 'details' && (
+        {(isSearching || filter !== 'trash') &&
+          (effectiveView === 'sidebar' || effectiveView === 'list') && (
+            <NoteListRows
+              notes={displayedNotes}
+              activeNoteId={activeNoteId}
+              labels={labels}
+              onSelect={handleSelect}
+            />
+          )}
+        {(isSearching || filter !== 'trash') && effectiveView === 'details' && (
           <NoteDetailsTable
             notes={displayedNotes}
             activeNoteId={activeNoteId}
@@ -239,15 +258,16 @@ function NoteList(): React.JSX.Element | null {
             onSelect={handleSelect}
           />
         )}
-        {filter !== 'trash' && (effectiveView === 'grid' || effectiveView === 'largegrid') && (
-          <NoteGridCards
-            notes={displayedNotes}
-            activeNoteId={activeNoteId}
-            labels={labels}
-            onSelect={handleSelect}
-            large={effectiveView === 'largegrid'}
-          />
-        )}
+        {(isSearching || filter !== 'trash') &&
+          (effectiveView === 'grid' || effectiveView === 'largegrid') && (
+            <NoteGridCards
+              notes={displayedNotes}
+              activeNoteId={activeNoteId}
+              labels={labels}
+              onSelect={handleSelect}
+              large={effectiveView === 'largegrid'}
+            />
+          )}
       </div>
 
       {pendingPurgeId !== null && (

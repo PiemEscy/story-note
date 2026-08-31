@@ -35,14 +35,16 @@ interface MockNotesApi {
   export: ReturnType<typeof vi.fn>;
 }
 
-// Installs a mocked window.storyNoteAPI.notes (+ .labels.assign, used only
-// by assignLabel) — the store's only dependencies (via services/notesService.ts
-// and services/labelsService.ts) — so these tests exercise real store logic
+// Installs a mocked window.storyNoteAPI.notes (+ .labels.assign and
+// .search.query, used only by assignLabel/search) — the store's only
+// dependencies (via services/notesService.ts, services/labelsService.ts, and
+// services/searchService.ts) — so these tests exercise real store logic
 // (dropNote semantics, race handling, error propagation) without a real IPC
 // transport or database.
 function installMockApi(
   overrides: Record<string, unknown> = {},
   labelsOverrides: Record<string, unknown> = {},
+  searchOverrides: Record<string, unknown> = {},
 ): MockNotesApi {
   const notesApi = {
     create: vi.fn(),
@@ -66,8 +68,12 @@ function installMockApi(
     assign: vi.fn(),
     ...labelsOverrides,
   };
-  // @ts-expect-error partial mock is sufficient — the store only touches `notes`/`labels`
-  window.storyNoteAPI = { notes: notesApi, labels: labelsApi };
+  const searchApi = {
+    query: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+    ...searchOverrides,
+  };
+  // @ts-expect-error partial mock is sufficient — the store only touches `notes`/`labels`/`search`
+  window.storyNoteAPI = { notes: notesApi, labels: labelsApi, search: searchApi };
   return notesApi;
 }
 
@@ -80,7 +86,10 @@ beforeEach(() => {
     noteCounts: null,
     isLoading: false,
     error: null,
+    searchQuery: '',
+    searchResults: [],
     _loadRequestId: 0,
+    _searchRequestId: 0,
   });
 });
 
@@ -272,6 +281,19 @@ describe('createNote', () => {
 
     expect(useNoteStore.getState().labelFilter).toBeNull();
   });
+
+  it('clears an active search (a new note should not stay hidden behind stale search results)', async () => {
+    installMockApi({
+      create: vi.fn().mockResolvedValue({ ok: true, data: note(5) }),
+      list: vi.fn().mockResolvedValue({ ok: true, data: [note(5)] }),
+    });
+    useNoteStore.setState({ searchQuery: 'roadmap', searchResults: [note(9)] });
+
+    await useNoteStore.getState().createNote();
+
+    expect(useNoteStore.getState().searchQuery).toBe('');
+    expect(useNoteStore.getState().searchResults).toEqual([]);
+  });
 });
 
 describe('setLabelFilter', () => {
@@ -287,6 +309,16 @@ describe('setLabelFilter', () => {
     expect(api.list).toHaveBeenCalled();
     expect(useNoteStore.getState().notes).toEqual([note(1)]);
   });
+
+  it('clears an active search — clicking a label is nav, same precedence as setFilter', async () => {
+    installMockApi();
+    useNoteStore.setState({ searchQuery: 'roadmap', searchResults: [note(9)] });
+
+    await useNoteStore.getState().setLabelFilter(3);
+
+    expect(useNoteStore.getState().searchQuery).toBe('');
+    expect(useNoteStore.getState().searchResults).toEqual([]);
+  });
 });
 
 describe('setFilter', () => {
@@ -301,6 +333,72 @@ describe('setFilter', () => {
     await useNoteStore.getState().setFilter('archived');
 
     expect(useNoteStore.getState().labelFilter).toBeNull();
+  });
+
+  it('clears an active search', async () => {
+    installMockApi();
+    useNoteStore.setState({ searchQuery: 'roadmap', searchResults: [note(9)] });
+
+    await useNoteStore.getState().setFilter('archived');
+
+    expect(useNoteStore.getState().searchQuery).toBe('');
+    expect(useNoteStore.getState().searchResults).toEqual([]);
+  });
+});
+
+describe('search', () => {
+  it('queries the search service and stores the results', async () => {
+    const results = [note(1), note(2)];
+    installMockApi({}, {}, { query: vi.fn().mockResolvedValue({ ok: true, data: results }) });
+
+    await useNoteStore.getState().search('roadmap');
+
+    expect(useNoteStore.getState().searchQuery).toBe('roadmap');
+    expect(useNoteStore.getState().searchResults).toEqual(results);
+  });
+
+  it('clears results for a blank query without calling the search service', async () => {
+    const query = vi.fn().mockResolvedValue({ ok: true, data: [note(1)] });
+    installMockApi({}, {}, { query });
+    useNoteStore.setState({ searchResults: [note(9)] });
+
+    await useNoteStore.getState().search('   ');
+
+    expect(useNoteStore.getState().searchResults).toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('an older in-flight search does not clobber a newer one that already resolved', async () => {
+    let resolveFirst!: (value: { ok: true; data: PublicNoteRow[] }) => void;
+    const query = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ ok: true, data: [note(2)] });
+    installMockApi({}, {}, { query });
+
+    const first = useNoteStore.getState().search('a');
+    await useNoteStore.getState().search('ab');
+    resolveFirst({ ok: true, data: [note(1)] });
+    await first;
+
+    expect(useNoteStore.getState().searchResults).toEqual([note(2)]);
+  });
+
+  it('sets error state (and does not throw) when the service call fails', async () => {
+    installMockApi(
+      {},
+      {},
+      { query: vi.fn().mockRejectedValue(new Error('search backend exploded')) },
+    );
+
+    await useNoteStore.getState().search('roadmap');
+
+    expect(useNoteStore.getState().error).toBe('search backend exploded');
   });
 });
 

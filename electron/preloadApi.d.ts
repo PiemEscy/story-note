@@ -33,6 +33,9 @@ export interface StoryNoteAPI {
     set: (key: string, value: string) => Promise<IpcResult<void>>;
     delete: (key: string) => Promise<IpcResult<void>>;
   };
+  search: {
+    query: (query: string) => Promise<IpcResult<PublicNoteRow[]>>;
+  };
 }
 
 declare global {

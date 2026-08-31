@@ -8,6 +8,7 @@ import {
   listTrashedNotes,
   purgeNote,
   restoreNote,
+  searchNotes,
   setArchived,
   setPinned,
   softDeleteNote,
@@ -264,6 +265,93 @@ describe('listNotes sorting', () => {
 
       const result = listNotes(db).map((n) => n.id);
       expect(result).toEqual([newer.id, older.id]);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('searchNotes', () => {
+  it('matches against title', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const match = createNote(db, { title: 'Grocery list', content: '<p>eggs</p>' });
+      createNote(db, { title: 'Unrelated', content: '<p>nothing here</p>' });
+
+      expect(searchNotes(db, 'grocery').map((n) => n.id)).toEqual([match.id]);
+    } finally {
+      close();
+    }
+  });
+
+  it('matches against content_plain', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const match = createNote(db, { title: 'Notes', contentPlain: 'buy oat milk' });
+      createNote(db, { title: 'Other', contentPlain: 'nothing relevant' });
+
+      expect(searchNotes(db, 'oat milk').map((n) => n.id)).toEqual([match.id]);
+    } finally {
+      close();
+    }
+  });
+
+  it('is case-insensitive', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const match = createNote(db, { title: 'Roadmap' });
+
+      expect(searchNotes(db, 'ROADMAP').map((n) => n.id)).toEqual([match.id]);
+    } finally {
+      close();
+    }
+  });
+
+  it('excludes soft-deleted notes', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const trashed = createNote(db, { title: 'Trashed roadmap' });
+      softDeleteNote(db, trashed.id);
+
+      expect(searchNotes(db, 'roadmap')).toEqual([]);
+    } finally {
+      close();
+    }
+  });
+
+  it('includes archived notes', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const archived = createNote(db, { title: 'Archived roadmap' });
+      setArchived(db, archived.id, true);
+
+      expect(searchNotes(db, 'roadmap').map((n) => n.id)).toEqual([archived.id]);
+    } finally {
+      close();
+    }
+  });
+
+  it('returns an empty array for a blank query without touching the database', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      createNote(db, { title: 'Anything' });
+
+      expect(searchNotes(db, '')).toEqual([]);
+      expect(searchNotes(db, '   ')).toEqual([]);
+    } finally {
+      close();
+    }
+  });
+
+  it('treats a SQL-injection-shaped query as a literal, parameterized string', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      createNote(db, { title: 'Safe note' });
+
+      expect(() => searchNotes(db, "'; DROP TABLE notes; --")).not.toThrow();
+      expect(searchNotes(db, "'; DROP TABLE notes; --")).toEqual([]);
+      // The table must still exist and be queryable afterward.
+      expect(listNotes(db)).toHaveLength(1);
     } finally {
       close();
     }

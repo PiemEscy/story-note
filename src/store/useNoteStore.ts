@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { notesService } from '../services/notesService';
 import type { NoteCounts, PublicNoteRow } from '../services/notesService';
 import { labelsService } from '../services/labelsService';
+import { searchService } from '../services/searchService';
 import type { NoteSortField, SortDirection } from '../../electron/db/notes';
 
 export type NoteFilter = 'active' | 'archived' | 'trash';
@@ -28,15 +29,25 @@ interface NoteState {
   sortDirection: SortDirection;
   isLoading: boolean;
   error: string | null;
+  // Global search (Sidebar's search input) — spans every filter/label, so it
+  // deliberately lives alongside `notes` rather than replacing it: clearing
+  // the query just falls back to whatever filter/labelFilter already had
+  // selected, with no re-fetch needed.
+  searchQuery: string;
+  searchResults: PublicNoteRow[];
   // Internal — not meant to be read by components. Bumped on every
   // loadNotes() call so an in-flight request can tell, once it resolves,
   // whether a newer call has since superseded it (see loadNotes below).
   _loadRequestId: number;
+  // Same guard as _loadRequestId, for search() — a fast keystroke can start
+  // a second query before the first's IPC round trip resolves.
+  _searchRequestId: number;
 
   loadNotes: () => Promise<void>;
   loadNoteCounts: () => Promise<void>;
   setFilter: (filter: NoteFilter) => Promise<void>;
   setLabelFilter: (labelId: number) => Promise<void>;
+  search: (query: string) => Promise<void>;
   selectNote: (id: number | null) => void;
   createNote: () => Promise<void>;
   // Returns whether the save succeeded — EditorPanel's autosave uses this to
@@ -95,7 +106,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   sortDirection: 'desc',
   isLoading: false,
   error: null,
+  searchQuery: '',
+  searchResults: [],
   _loadRequestId: 0,
+  _searchRequestId: 0,
 
   loadNotes: async () => {
     const requestId = get()._loadRequestId + 1;
@@ -128,13 +142,38 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   setFilter: async (filter) => {
-    set({ filter, labelFilter: null, activeNoteId: null });
+    set({ filter, labelFilter: null, activeNoteId: null, searchQuery: '', searchResults: [] });
     await get().loadNotes();
   },
 
   setLabelFilter: async (labelId) => {
-    set({ filter: 'active', labelFilter: labelId, activeNoteId: null });
+    set({
+      filter: 'active',
+      labelFilter: labelId,
+      activeNoteId: null,
+      searchQuery: '',
+      searchResults: [],
+    });
     await get().loadNotes();
+  },
+
+  search: async (query) => {
+    const requestId = get()._searchRequestId + 1;
+    set({ searchQuery: query, _searchRequestId: requestId });
+    if (query.trim() === '') {
+      set({ searchResults: [] });
+      return;
+    }
+    try {
+      const results = await searchService.query(query);
+      // A newer search() call landed while this one was in flight — discard
+      // this (now-stale) result instead of clobbering a fresher one.
+      if (get()._searchRequestId !== requestId) return;
+      set({ searchResults: results });
+    } catch (error) {
+      if (get()._searchRequestId !== requestId) return;
+      set({ error: messageFrom(error, 'Search failed') });
+    }
   },
 
   selectNote: (id) => set({ activeNoteId: id }),
@@ -142,7 +181,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   createNote: async () => {
     try {
       const note = await notesService.create({});
-      set({ filter: 'active', labelFilter: null });
+      set({ filter: 'active', labelFilter: null, searchQuery: '', searchResults: [] });
       await get().loadNotes();
       set({ activeNoteId: note.id });
       void get().loadNoteCounts();

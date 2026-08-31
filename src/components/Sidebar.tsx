@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNoteStore } from '../store/useNoteStore';
 import type { NoteFilter } from '../store/useNoteStore';
 import { useLabelStore, resolveLabelColor } from '../store/useLabelStore';
@@ -13,6 +13,7 @@ import {
   SunIcon,
   MoonIcon,
   EditIcon,
+  SearchIcon,
 } from './icons';
 import LabelModal from './LabelModal';
 
@@ -45,6 +46,8 @@ function Sidebar(): React.JSX.Element {
   const setLabelFilter = useNoteStore((state) => state.setLabelFilter);
   const noteCounts = useNoteStore((state) => state.noteCounts);
   const createNote = useNoteStore((state) => state.createNote);
+  const searchQuery = useNoteStore((state) => state.searchQuery);
+  const search = useNoteStore((state) => state.search);
   const labels = useLabelStore((state) => state.labels);
   const theme = useUIStore((state) => state.theme);
   const resolvedTheme = useUIStore((state) => state.resolvedTheme);
@@ -53,6 +56,22 @@ function Sidebar(): React.JSX.Element {
   // 'new' opens the modal in create mode; a LabelRow opens it pre-filled for
   // editing (with a delete option); null keeps it closed.
   const [editingLabel, setEditingLabel] = useState<LabelRow | 'new' | null>(null);
+
+  // "Accessible from anywhere" (Phase 7): Sidebar is always mounted
+  // regardless of filter/view, so a persistent search box here already
+  // satisfies that on its own — this just adds the reference's Ctrl/Cmd+K
+  // shortcut to jump focus into it from wherever the user's cursor is.
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     // storynote-ui-reference.html's .sidebar targets 240px but only sets
@@ -69,6 +88,21 @@ function Sidebar(): React.JSX.Element {
         <div className="text-[13.5px] font-semibold tracking-tight text-[var(--text-primary)]">
           StoryNote
         </div>
+      </div>
+
+      <div className="mx-3 mb-2.5 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-input)] px-2 py-1.5 transition-colors focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
+        <SearchIcon className="h-3.5 w-3.5 shrink-0 text-[var(--text-tertiary)]" />
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(event) => void search(event.target.value)}
+          placeholder="Search notes…"
+          className="w-full min-w-0 border-0 bg-transparent text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+        />
+        <span className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-hover)] px-1 py-px font-mono text-[10px] text-[var(--text-tertiary)]">
+          Ctrl K
+        </span>
       </div>
 
       <nav className="flex flex-col gap-px px-2 py-0.5">

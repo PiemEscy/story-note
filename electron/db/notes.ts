@@ -148,6 +148,30 @@ export function getNoteCounts(db: Database.Database): NoteCounts {
   return { active, archived, trash, byLabel };
 }
 
+// LIKE-based search against title/content_plain (FR-5's Phase 7 scope — FTS5
+// is an explicit "later, if needed" upgrade in development-plan.md, not
+// required now). Always excludes soft-deleted notes; archived notes ARE
+// included (schema.md's search spec only calls out deleted_at). Locked notes
+// are matched here too — content_plain redaction for them (FR-5.3) is an
+// IPC-boundary/presentation concern, not a query concern, so it happens in
+// the handler that calls this (electron/ipc/searchHandlers.ts), same as
+// password_hash's exclusion happens in toPublicNote() rather than here.
+export function searchNotes(db: Database.Database, query: string): NoteRow[] {
+  const trimmed = query.trim();
+  if (trimmed === '') {
+    return [];
+  }
+
+  const pattern = `%${trimmed}%`;
+  return db
+    .prepare(
+      `SELECT * FROM notes
+       WHERE deleted_at IS NULL AND (title LIKE ? OR content_plain LIKE ?)
+       ORDER BY updated_at DESC`,
+    )
+    .all(pattern, pattern) as NoteRow[];
+}
+
 export function listArchivedNotes(db: Database.Database): NoteRow[] {
   return db
     .prepare(
