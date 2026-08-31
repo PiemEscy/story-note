@@ -13,6 +13,18 @@ function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    // Sidebar view's three panes each have their own min-width floor now
+    // (Sidebar.tsx 180px, NoteList.tsx's Sidebar-view branch 240px,
+    // EditorPanel.tsx 300px) — genuinely shrinkable down to those floors
+    // rather than permanently rigid or (EditorPanel's original bug) able to
+    // collapse to 0 width via flex-basis:0% before its siblings even
+    // reached their own floors. 180+240+300 = 720px combined; below that,
+    // no CSS reflow strategy keeps the 3-pane desktop layout usable without
+    // clipping content with no way to see it (a mobile-style single-pane
+    // layout would be a different app, not "responsive" for this one).
+    // 760x360 keeps a small usable margin above that floor.
+    minWidth: 760,
+    minHeight: 360,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),

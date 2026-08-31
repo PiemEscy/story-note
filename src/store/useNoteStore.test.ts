@@ -26,6 +26,7 @@ interface MockNotesApi {
   list: ReturnType<typeof vi.fn>;
   listArchived: ReturnType<typeof vi.fn>;
   listTrashed: ReturnType<typeof vi.fn>;
+  getCounts: ReturnType<typeof vi.fn>;
   setPinned: ReturnType<typeof vi.fn>;
   setArchived: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
@@ -34,11 +35,15 @@ interface MockNotesApi {
   export: ReturnType<typeof vi.fn>;
 }
 
-// Installs a mocked window.storyNoteAPI.notes — the store's only dependency
-// (via services/notesService.ts) — so these tests exercise real store logic
+// Installs a mocked window.storyNoteAPI.notes (+ .labels.assign, used only
+// by assignLabel) — the store's only dependencies (via services/notesService.ts
+// and services/labelsService.ts) — so these tests exercise real store logic
 // (dropNote semantics, race handling, error propagation) without a real IPC
 // transport or database.
-function installMockApi(overrides: Record<string, unknown> = {}): MockNotesApi {
+function installMockApi(
+  overrides: Record<string, unknown> = {},
+  labelsOverrides: Record<string, unknown> = {},
+): MockNotesApi {
   const notesApi = {
     create: vi.fn(),
     get: vi.fn(),
@@ -46,6 +51,9 @@ function installMockApi(overrides: Record<string, unknown> = {}): MockNotesApi {
     list: vi.fn().mockResolvedValue({ ok: true, data: [] }),
     listArchived: vi.fn().mockResolvedValue({ ok: true, data: [] }),
     listTrashed: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+    getCounts: vi
+      .fn()
+      .mockResolvedValue({ ok: true, data: { active: 0, archived: 0, trash: 0, byLabel: {} } }),
     setPinned: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     setArchived: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     delete: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
@@ -54,8 +62,12 @@ function installMockApi(overrides: Record<string, unknown> = {}): MockNotesApi {
     export: vi.fn(),
     ...overrides,
   };
-  // @ts-expect-error partial mock is sufficient — the store only touches `notes`
-  window.storyNoteAPI = { notes: notesApi };
+  const labelsApi = {
+    assign: vi.fn(),
+    ...labelsOverrides,
+  };
+  // @ts-expect-error partial mock is sufficient — the store only touches `notes`/`labels`
+  window.storyNoteAPI = { notes: notesApi, labels: labelsApi };
   return notesApi;
 }
 
@@ -64,6 +76,8 @@ beforeEach(() => {
     notes: [],
     activeNoteId: null,
     filter: 'active',
+    labelFilter: null,
+    noteCounts: null,
     isLoading: false,
     error: null,
     _loadRequestId: 0,
@@ -133,6 +147,64 @@ describe('drop-on-success actions (delete/restore/purge/setArchived)', () => {
     // the note is untouched since the service call failed
     expect(useNoteStore.getState().notes).toEqual([note(1)]);
   });
+
+  it('deleteNote also refreshes noteCounts (a note leaving the active list changes its count)', async () => {
+    const api = installMockApi({
+      getCounts: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: { active: 0, archived: 0, trash: 1, byLabel: {} } }),
+    });
+    useNoteStore.setState({ notes: [note(1)] });
+
+    await useNoteStore.getState().deleteNote(1);
+    await Promise.resolve(); // loadNoteCounts is fire-and-forget
+
+    expect(api.getCounts).toHaveBeenCalled();
+    expect(useNoteStore.getState().noteCounts).toEqual({
+      active: 0,
+      archived: 0,
+      trash: 1,
+      byLabel: {},
+    });
+  });
+});
+
+describe('loadNoteCounts', () => {
+  it('populates noteCounts from the service', async () => {
+    installMockApi({
+      getCounts: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { active: 3, archived: 1, trash: 0, byLabel: { 1: 2 } },
+      }),
+    });
+
+    await useNoteStore.getState().loadNoteCounts();
+
+    expect(useNoteStore.getState().noteCounts).toEqual({
+      active: 3,
+      archived: 1,
+      trash: 0,
+      byLabel: { 1: 2 },
+    });
+  });
+
+  it('logs and leaves noteCounts unchanged (no error toast) when the service call fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    installMockApi({
+      getCounts: vi.fn().mockResolvedValue({ ok: false, message: 'db is locked' }),
+    });
+    useNoteStore.setState({ noteCounts: { active: 1, archived: 0, trash: 0, byLabel: {} } });
+
+    await useNoteStore.getState().loadNoteCounts();
+
+    expect(useNoteStore.getState().noteCounts).toEqual({
+      active: 1,
+      archived: 0,
+      trash: 0,
+      byLabel: {},
+    });
+    expect(useNoteStore.getState().error).toBeNull();
+  });
 });
 
 describe('loadNotes', () => {
@@ -188,6 +260,48 @@ describe('createNote', () => {
     expect(useNoteStore.getState().activeNoteId).toBe(5);
     expect(useNoteStore.getState().notes).toEqual([created]);
   });
+
+  it('clears an active labelFilter (a new note is not scoped to whatever label was being browsed)', async () => {
+    installMockApi({
+      create: vi.fn().mockResolvedValue({ ok: true, data: note(5) }),
+      list: vi.fn().mockResolvedValue({ ok: true, data: [note(5)] }),
+    });
+    useNoteStore.setState({ labelFilter: 3 });
+
+    await useNoteStore.getState().createNote();
+
+    expect(useNoteStore.getState().labelFilter).toBeNull();
+  });
+});
+
+describe('setLabelFilter', () => {
+  it('sets filter to active, sets labelFilter, and reloads notes', async () => {
+    const api = installMockApi({ list: vi.fn().mockResolvedValue({ ok: true, data: [note(1)] }) });
+    useNoteStore.setState({ filter: 'archived', activeNoteId: 7 });
+
+    await useNoteStore.getState().setLabelFilter(3);
+
+    expect(useNoteStore.getState().filter).toBe('active');
+    expect(useNoteStore.getState().labelFilter).toBe(3);
+    expect(useNoteStore.getState().activeNoteId).toBeNull();
+    expect(api.list).toHaveBeenCalled();
+    expect(useNoteStore.getState().notes).toEqual([note(1)]);
+  });
+});
+
+describe('setFilter', () => {
+  // Sidebar nav (All Notes/Archived/Trash) and a selected label are
+  // mutually exclusive, single-selection nav targets — clicking one clears
+  // the other, same as clicking a different label clears the previous one
+  // via setLabelFilter's own unconditional set().
+  it('clears an active labelFilter', async () => {
+    installMockApi();
+    useNoteStore.setState({ labelFilter: 3 });
+
+    await useNoteStore.getState().setFilter('archived');
+
+    expect(useNoteStore.getState().labelFilter).toBeNull();
+  });
 });
 
 describe('clearError', () => {
@@ -223,6 +337,39 @@ describe('updateNote', () => {
 
     expect(result).toBe(false);
     expect(useNoteStore.getState().error).toBe('disk full');
+    expect(useNoteStore.getState().notes).toEqual([note(1)]);
+  });
+});
+
+describe('assignLabel', () => {
+  // A code review flagged that patching only label_id locally (rather than
+  // using the full row the IPC call returns) left updated_at stale in the
+  // renderer's cache — assignLabelToNote bumps it in the DB (schema.md: a
+  // label change is one of the edits that bumps updated_at), so the note's
+  // position in an updated_at-sorted list and its "Modified …" display
+  // wouldn't reflect the change until the next full reload.
+  it('returns true and replaces the note in state with the full updated row', async () => {
+    const updated = note(1, { label_id: 5, updated_at: '2026-02-02 00:00:00' });
+    installMockApi({}, { assign: vi.fn().mockResolvedValue({ ok: true, data: updated }) });
+    useNoteStore.setState({ notes: [note(1)] });
+
+    const result = await useNoteStore.getState().assignLabel(1, 5);
+
+    expect(result).toBe(true);
+    expect(useNoteStore.getState().notes).toEqual([updated]);
+  });
+
+  it('returns false and sets error state on failure, without touching notes', async () => {
+    installMockApi(
+      {},
+      { assign: vi.fn().mockResolvedValue({ ok: false, message: 'db is locked' }) },
+    );
+    useNoteStore.setState({ notes: [note(1)] });
+
+    const result = await useNoteStore.getState().assignLabel(1, 5);
+
+    expect(result).toBe(false);
+    expect(useNoteStore.getState().error).toBe('db is locked');
     expect(useNoteStore.getState().notes).toEqual([note(1)]);
   });
 });

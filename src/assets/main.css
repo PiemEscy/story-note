@@ -10,6 +10,65 @@
   --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
 }
 
+/* ---- Theme tokens ----
+   Plain custom properties (not Tailwind's @theme) since these switch at
+   runtime via the [data-theme] attribute useUIStore.ts sets on <html> —
+   components reference them through Tailwind's arbitrary-value syntax
+   (e.g. bg-[var(--bg-app)]) rather than generated utility classes. Values
+   copied verbatim from storynote-ui-reference.html so every themed surface
+   matches it exactly. */
+:root {
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #eff4ff;
+
+  /* Label preset palette — deliberately identical in both themes (the
+     reference never overrides these per [data-theme]) so a label's color
+     stays recognizable regardless of theme. */
+  --label-blue: #2563eb;
+  --label-green: #16a34a;
+  --label-amber: #d97706;
+  --label-rose: #e11d48;
+  --label-violet: #7c3aed;
+  --label-slate: #64748b;
+  --label-default: #64748b;
+}
+
+[data-theme='light'] {
+  --bg-app: #f7f8fa;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #ffffff;
+  --bg-sidebar: #f1f3f6;
+  --bg-hover: #ebeef2;
+  --bg-active: #e8eefd;
+  --bg-input: #ffffff;
+  --border: #e2e5ea;
+  --border-strong: #cbd2db;
+  --text-primary: #14181f;
+  --text-secondary: #5b6472;
+  --text-tertiary: #8992a0;
+  --text-on-accent: #ffffff;
+  --scrim: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme='dark'] {
+  --bg-app: #16181d;
+  --bg-surface: #1d2026;
+  --bg-surface-raised: #23262e;
+  --bg-sidebar: #1a1c22;
+  --bg-hover: #2a2e37;
+  --bg-active: #23304d;
+  --bg-input: #23262e;
+  --border: #2c2f37;
+  --border-strong: #3a3e48;
+  --text-primary: #edeef1;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-on-accent: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --accent-soft: #1b2740;
+}
+
 html,
 body,
 #root {
@@ -18,10 +77,8 @@ body,
 
 body {
   font-family: var(--font-ui);
-  /* Matches the UI reference's light-theme --bg-app / --text-primary; full
-     light/dark theming (data-theme switching) is Phase 5. */
-  background: #f7f8fa;
-  color: #14181f;
+  background: var(--bg-app);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -32,6 +89,7 @@ body {
    fixed set of elements this app authors directly. */
 .tiptap {
   font-family: var(--font-content);
+  color: var(--text-primary);
 }
 /* Levels 2-3 only — StarterKit is constrained to these in useNoteEditor.ts
    ("Heading 1"/"Heading 2" in the toolbar), matching the UI reference's own
@@ -85,18 +143,18 @@ body {
 }
 .tiptap th,
 .tiptap td {
-  border: 1px solid #e2e5ea;
+  border: 1px solid var(--border);
   padding: 7px 10px;
   text-align: left;
 }
 .tiptap th {
-  background: #ebeef2;
+  background: var(--bg-hover);
   font-weight: 600;
   font-size: 12px;
 }
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #8992a0;
+  color: var(--text-tertiary);
   float: left;
   height: 0;
   pointer-events: none;

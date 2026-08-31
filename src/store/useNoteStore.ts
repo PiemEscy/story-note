@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { notesService } from '../services/notesService';
-import type { PublicNoteRow } from '../services/notesService';
+import type { NoteCounts, PublicNoteRow } from '../services/notesService';
+import { labelsService } from '../services/labelsService';
 import type { NoteSortField, SortDirection } from '../../electron/db/notes';
 
 export type NoteFilter = 'active' | 'archived' | 'trash';
@@ -9,6 +10,20 @@ interface NoteState {
   notes: PublicNoteRow[];
   activeNoteId: number | null;
   filter: NoteFilter;
+  // Non-null when the Sidebar's Labels section has one selected — narrows
+  // the 'active' filter's notes down to that label, client-side (notes for
+  // 'active' are already fetched in full; no IPC/schema change needed for
+  // this). Mutually exclusive with plain filter navigation in practice:
+  // setFilter() clears it, matching "same interaction pattern as clicking
+  // All Notes" (only one nav-style selection active at a time).
+  labelFilter: number | null;
+  // Sidebar's nav-item/label-item counts (storynote-ui-reference.html's
+  // .nav-count) — null until the first successful load. Independent of
+  // `notes` (which only ever holds whichever single filter is currently
+  // shown), so it's refreshed separately: once on app mount, then again
+  // after any mutation that could change a count (create/delete/restore/
+  // purge/archive-toggle/label-assign).
+  noteCounts: NoteCounts | null;
   sortBy: NoteSortField;
   sortDirection: SortDirection;
   isLoading: boolean;
@@ -19,7 +34,9 @@ interface NoteState {
   _loadRequestId: number;
 
   loadNotes: () => Promise<void>;
+  loadNoteCounts: () => Promise<void>;
   setFilter: (filter: NoteFilter) => Promise<void>;
+  setLabelFilter: (labelId: number) => Promise<void>;
   selectNote: (id: number | null) => void;
   createNote: () => Promise<void>;
   // Returns whether the save succeeded — EditorPanel's autosave uses this to
@@ -34,6 +51,7 @@ interface NoteState {
   purgeNote: (id: number) => Promise<void>;
   setArchived: (id: number, isArchived: boolean) => Promise<void>;
   exportNote: (id: number) => Promise<{ cancelled: boolean }>;
+  assignLabel: (id: number, labelId: number | null) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -71,6 +89,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   notes: [],
   activeNoteId: null,
   filter: 'active',
+  labelFilter: null,
+  noteCounts: null,
   sortBy: 'updated_at',
   sortDirection: 'desc',
   isLoading: false,
@@ -93,8 +113,27 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 
+  loadNoteCounts: async () => {
+    try {
+      const noteCounts = await notesService.getCounts();
+      set({ noteCounts });
+    } catch (error) {
+      // Deliberately not surfaced via the `error` toast — a stale/missing
+      // sidebar count isn't worth interrupting the user the way a failed
+      // note action is; log it for debugging (code-style.md's error
+      // handling rule: never swallow silently) and leave the last-known
+      // counts (or null) in place.
+      console.error('[useNoteStore] failed to load note counts', error);
+    }
+  },
+
   setFilter: async (filter) => {
-    set({ filter, activeNoteId: null });
+    set({ filter, labelFilter: null, activeNoteId: null });
+    await get().loadNotes();
+  },
+
+  setLabelFilter: async (labelId) => {
+    set({ filter: 'active', labelFilter: labelId, activeNoteId: null });
     await get().loadNotes();
   },
 
@@ -103,9 +142,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   createNote: async () => {
     try {
       const note = await notesService.create({});
-      set({ filter: 'active' });
+      set({ filter: 'active', labelFilter: null });
       await get().loadNotes();
       set({ activeNoteId: note.id });
+      void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to create note') });
     }
@@ -128,6 +168,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await notesService.delete(id);
       set((state) => dropNote(state, id));
+      void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to delete note') });
     }
@@ -137,6 +178,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await notesService.restore(id);
       set((state) => dropNote(state, id));
+      void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to restore note') });
     }
@@ -146,6 +188,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await notesService.purge(id);
       set((state) => dropNote(state, id));
+      void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to permanently delete note') });
     }
@@ -155,6 +198,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await notesService.setArchived(id, isArchived);
       set((state) => dropNote(state, id));
+      void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to archive note') });
     }
@@ -166,6 +210,20 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to export note') });
       return { cancelled: true };
+    }
+  },
+
+  assignLabel: async (id, labelId) => {
+    try {
+      const updated = await labelsService.assign(id, labelId);
+      set((state) => ({
+        notes: state.notes.map((note) => (note.id === id ? updated : note)),
+      }));
+      void get().loadNoteCounts();
+      return true;
+    } catch (error) {
+      set({ error: messageFrom(error, 'Failed to assign label') });
+      return false;
     }
   },
 

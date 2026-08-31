@@ -15,7 +15,7 @@ function NoteEditor({ editor }: NoteEditorProps): React.JSX.Element | null {
   return (
     <EditorContent
       editor={editor}
-      className="text-[16.5px] leading-[1.75] text-[#14181F] [&_.tiptap]:min-h-[40vh] [&_.tiptap]:outline-none"
+      className="text-[16.5px] leading-[1.75] text-[var(--text-primary)] [&_.tiptap]:min-h-[40vh] [&_.tiptap]:outline-none"
     />
   );
 }

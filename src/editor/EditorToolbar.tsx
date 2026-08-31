@@ -25,8 +25,8 @@ function ToolbarButton({
       onClick={onClick}
       className={`flex h-[26px] min-w-[26px] items-center justify-center rounded px-1.5 text-[12.5px] font-semibold transition-colors ${
         isActive
-          ? 'bg-[#E8EEFD] text-[#2563EB]'
-          : 'text-[#5B6472] hover:bg-[#EBEEF2] hover:text-[#14181F]'
+          ? 'bg-[var(--bg-active)] text-[var(--accent)]'
+          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
       }`}
     >
       {label}
@@ -35,7 +35,7 @@ function ToolbarButton({
 }
 
 function Divider(): React.JSX.Element {
-  return <span className="mx-1.5 h-[18px] w-px shrink-0 bg-[#E2E5EA]" />;
+  return <span className="mx-1.5 h-[18px] w-px shrink-0 bg-[var(--border)]" />;
 }
 
 // Matches the UI reference's .editor-toolbar (text style select, bold/
@@ -56,7 +56,7 @@ function EditorToolbar({ editor }: EditorToolbarProps): React.JSX.Element {
       : 'paragraph';
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-[#E2E5EA] bg-[#F7F8FA] px-3.5 py-1.5">
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--border)] bg-[var(--bg-surface-raised)] px-3.5 py-1.5">
       <select
         title="Text style"
         value={currentTextStyle}
@@ -67,7 +67,7 @@ function EditorToolbar({ editor }: EditorToolbarProps): React.JSX.Element {
           else if (value === 'h2') chain.toggleHeading({ level: 3 }).run();
           else chain.setParagraph().run();
         }}
-        className="mr-1 rounded border border-[#E2E5EA] bg-transparent px-1.5 py-1 text-xs text-[#5B6472]"
+        className="mr-1 rounded border border-[var(--border)] bg-transparent px-1.5 py-1 text-xs text-[var(--text-secondary)]"
       >
         <option value="paragraph">Paragraph</option>
         <option value="h1">Heading 1</option>

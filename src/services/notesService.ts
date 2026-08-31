@@ -1,8 +1,13 @@
-import type { CreateNoteInput, ListNotesOptions, UpdateNoteInput } from '../../electron/db/notes';
+import type {
+  CreateNoteInput,
+  ListNotesOptions,
+  NoteCounts,
+  UpdateNoteInput,
+} from '../../electron/db/notes';
 import type { PublicNoteRow } from '../../electron/ipc/notesHandlers';
 import type { IpcResult } from '../../electron/ipc/types';
 
-export type { PublicNoteRow };
+export type { PublicNoteRow, NoteCounts };
 
 // Unwraps the { ok, data } / { ok: false, message } envelope every IPC call
 // returns, throwing on failure — callers (the Zustand store) catch this and
@@ -24,6 +29,7 @@ export const notesService = {
   list: (options?: ListNotesOptions) => window.storyNoteAPI.notes.list(options).then(unwrap),
   listArchived: () => window.storyNoteAPI.notes.listArchived().then(unwrap),
   listTrashed: () => window.storyNoteAPI.notes.listTrashed().then(unwrap),
+  getCounts: () => window.storyNoteAPI.notes.getCounts().then(unwrap),
   setPinned: (id: number, isPinned: boolean) =>
     window.storyNoteAPI.notes.setPinned(id, isPinned).then(unwrap),
   setArchived: (id: number, isArchived: boolean) =>
