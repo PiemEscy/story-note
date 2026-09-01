@@ -30,6 +30,8 @@ beforeEach(() => {
     resolvedTheme: 'light',
     view: 'sidebar',
     isNoteDetailOpen: false,
+    compactMode: false,
+    sidebarWidth: 240,
   });
   installMockApi();
 });
@@ -198,6 +200,124 @@ describe('useUIStore', () => {
       useUIStore.getState().setView('grid');
 
       expect(useUIStore.getState().isNoteDetailOpen).toBe(false);
+    });
+  });
+
+  describe('compact mode', () => {
+    it('defaults compactMode to false', () => {
+      expect(useUIStore.getState().compactMode).toBe(false);
+    });
+
+    it('updates compactMode via setCompactMode, and persists the choice', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setCompactMode(true);
+
+      expect(useUIStore.getState().compactMode).toBe(true);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('compact_mode', 'true');
+    });
+
+    describe('initCompactMode', () => {
+      it('applies a persisted "true" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'true' }) });
+
+        await useUIStore.getState().initCompactMode();
+
+        expect(useUIStore.getState().compactMode).toBe(true);
+      });
+
+      it('falls back to the current default when nothing is persisted', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: undefined }) });
+
+        await useUIStore.getState().initCompactMode();
+
+        expect(useUIStore.getState().compactMode).toBe(false);
+      });
+
+      it('does not clobber a value set via setCompactMode() while the IPC call is still in flight', async () => {
+        let resolveGet!: (value: { ok: true; data: string }) => void;
+        const pending = new Promise<{ ok: true; data: string }>((resolve) => {
+          resolveGet = resolve;
+        });
+        installMockApi({ get: vi.fn().mockReturnValue(pending) });
+
+        const initPromise = useUIStore.getState().initCompactMode();
+        useUIStore.getState().setCompactMode(true);
+
+        resolveGet({ ok: true, data: 'false' }); // the (now-stale) persisted value
+        await initPromise;
+
+        expect(useUIStore.getState().compactMode).toBe(true);
+      });
+    });
+  });
+
+  describe('sidebar width', () => {
+    it('defaults sidebarWidth to 240', () => {
+      expect(useUIStore.getState().sidebarWidth).toBe(240);
+    });
+
+    it('updates sidebarWidth via setSidebarWidth, and persists the choice', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setSidebarWidth(300);
+
+      expect(useUIStore.getState().sidebarWidth).toBe(300);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('sidebar_width', '300');
+    });
+
+    it('clamps setSidebarWidth to [180, 480]', () => {
+      installMockApi();
+
+      useUIStore.getState().setSidebarWidth(50);
+      expect(useUIStore.getState().sidebarWidth).toBe(180);
+
+      useUIStore.getState().setSidebarWidth(900);
+      expect(useUIStore.getState().sidebarWidth).toBe(480);
+    });
+
+    describe('initSidebarWidth', () => {
+      it('applies a valid persisted width', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '320' }) });
+
+        await useUIStore.getState().initSidebarWidth();
+
+        expect(useUIStore.getState().sidebarWidth).toBe(320);
+      });
+
+      it('clamps a persisted width outside [180, 480]', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '50' }) });
+
+        await useUIStore.getState().initSidebarWidth();
+
+        expect(useUIStore.getState().sidebarWidth).toBe(180);
+      });
+
+      it('falls back to the current default for a non-numeric persisted value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'not-a-number' }) });
+
+        await useUIStore.getState().initSidebarWidth();
+
+        expect(useUIStore.getState().sidebarWidth).toBe(240);
+      });
+
+      it('does not clobber a width set via setSidebarWidth() while the IPC call is still in flight', async () => {
+        let resolveGet!: (value: { ok: true; data: string }) => void;
+        const pending = new Promise<{ ok: true; data: string }>((resolve) => {
+          resolveGet = resolve;
+        });
+        installMockApi({ get: vi.fn().mockReturnValue(pending) });
+
+        const initPromise = useUIStore.getState().initSidebarWidth();
+        useUIStore.getState().setSidebarWidth(350);
+
+        resolveGet({ ok: true, data: '260' }); // the (now-stale) persisted value
+        await initPromise;
+
+        expect(useUIStore.getState().sidebarWidth).toBe(350);
+      });
     });
   });
 });

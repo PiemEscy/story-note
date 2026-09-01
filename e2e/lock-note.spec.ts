@@ -1,10 +1,5 @@
-import { randomBytes } from 'crypto';
-import { mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { Entry } from '@napi-rs/keyring';
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
-import { launchIsolatedApp } from './testHelpers';
+import { expect, test } from '@playwright/test';
+import { createIsolatedUserData, launchIsolatedApp } from './testHelpers';
 
 // Phase 8 — Note Locking. Covers the checklist end to end through the real
 // UI: locking a note, the temporary "unlock for this session" reveal, edit/
@@ -107,19 +102,13 @@ test('removing a lock permanently clears it, verified via a fresh app run', asyn
 // (electron/db/lockSession.ts) lives in memory and is never persisted, so
 // "reveal content for that session" can only be disproven by actually
 // restarting the app against the same on-disk database — the exact
-// "session" boundary Phase 8 is built around. Mirrors launchIsolatedApp()
-// (e2e/testHelpers.ts) but keeps the same --user-data-dir across two
-// launches instead of a fresh one per call.
+// "session" boundary Phase 8 is built around. Uses createIsolatedUserData()
+// (e2e/testHelpers.ts) to keep the same --user-data-dir across two launches
+// instead of launchIsolatedApp()'s fresh one per call.
 test('a locked note requires the password again after an app restart, and blocks edit/export until then', async () => {
-  const userDataDir = mkdtempSync(join(tmpdir(), 'storynote-e2e-'));
-  const credentialSuffix = randomBytes(8).toString('hex');
-  const launch = (): Promise<ElectronApplication> =>
-    electron.launch({
-      args: [join(__dirname, '../out/main/index.js'), `--user-data-dir=${userDataDir}`],
-      env: { ...process.env, STORYNOTE_E2E_CREDENTIAL_SUFFIX: credentialSuffix },
-    });
+  const isolated = createIsolatedUserData();
 
-  let app = await launch();
+  let app = await isolated.launch();
   try {
     let page = await app.firstWindow();
 
@@ -151,7 +140,7 @@ test('a locked note requires the password again after an app restart, and blocks
 
     // Fresh main process, same on-disk database — a brand-new (empty)
     // LockSession, so the note is genuinely locked-and-unverified again.
-    app = await launch();
+    app = await isolated.launch();
     page = await app.firstWindow();
 
     // Search/list previews stay redacted for a never-unlocked-this-session
@@ -177,7 +166,9 @@ test('a locked note requires the password again after an app restart, and blocks
     );
     expect(blockedExport.ok).toBe(false);
 
-    await page.getByText('Vault notes').click();
+    // No click needed to select the note — Phase 10's "remember last opened
+    // note" (settings.last_note_id) already re-selected it on this launch,
+    // since it was the active note when the app was closed above.
     await expect(
       page.getByText('This note is locked. Enter the password to view its content.'),
     ).toBeVisible();
@@ -199,7 +190,6 @@ test('a locked note requires the password again after an app restart, and blocks
     await expect(page.locator('.tiptap')).toContainText('the vault combination');
   } finally {
     await app.close();
-    rmSync(userDataDir, { recursive: true, force: true });
-    new Entry('storynote', `sqlcipher-key-e2e-${credentialSuffix}`).deletePassword();
+    await isolated.cleanup();
   }
 });

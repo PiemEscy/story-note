@@ -36,4 +36,11 @@ export const IPC_CHANNELS = {
   search: {
     query: 'storynote:search:query',
   },
+  // Main -> renderer push (not a request/response invoke like every channel
+  // above) — electron/shortcuts.ts sends on this when a global shortcut
+  // fires; preload.ts exposes it as shortcuts.onTrigger(), never raw
+  // ipcRenderer.on access.
+  shortcuts: {
+    trigger: 'storynote:shortcuts:trigger',
+  },
 } as const;

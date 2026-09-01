@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { deleteSetting, getAllSettings, getSetting, setSetting } from './settings';
+import {
+  deleteSetting,
+  getAllSettings,
+  getBooleanSetting,
+  getSetting,
+  setSetting,
+} from './settings';
 import { createTestDatabase } from './testHelpers';
 
 describe('settings', () => {
@@ -52,6 +58,32 @@ describe('settings', () => {
       deleteSetting(db, 'theme');
 
       expect(getSetting(db, 'theme')).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('getBooleanSetting', () => {
+  it('is true only for the exact string "true"', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      setSetting(db, 'always_on_top', 'true');
+      expect(getBooleanSetting(db, 'always_on_top')).toBe(true);
+    } finally {
+      close();
+    }
+  });
+
+  it('is false for "false", anything else, or an unset key', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      setSetting(db, 'compact_mode', 'false');
+      setSetting(db, 'start_minimized', 'yes');
+
+      expect(getBooleanSetting(db, 'compact_mode')).toBe(false);
+      expect(getBooleanSetting(db, 'start_minimized')).toBe(false);
+      expect(getBooleanSetting(db, 'launch_on_startup')).toBe(false);
     } finally {
       close();
     }

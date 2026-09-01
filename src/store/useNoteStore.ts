@@ -100,11 +100,39 @@ interface NoteState {
   lockNote: (id: number, password: string) => Promise<boolean>;
   unlockNote: (id: number, password: string) => Promise<boolean>;
   removeNoteLock: (id: number, password: string) => Promise<boolean>;
+  // Phase 10's "quick-lock" global shortcut — a panic button, not a
+  // per-note action (see lockNote/unlockNote/removeNoteLock above for
+  // those). Mirrors the main process's LockSession.lockAll(): clears every
+  // note this session had unlocked, then reloads so the notes array picks
+  // up the server's now-redacted content for each of them — clearing
+  // unlockedNoteIds alone would hide them from the UI but leave their
+  // already-fetched plaintext sitting in this store's memory.
+  lockAllNotes: () => Promise<void>;
+  // Restores settings.last_note_id (schema.md) as activeNoteId, once the
+  // notes it might refer to have actually loaded — App.tsx calls this after
+  // loadNotes() resolves, not concurrently with it. Only ever selects a note
+  // that's genuinely in the loaded 'active' list; a stale id (the note was
+  // since deleted/archived/trashed) is silently ignored rather than erroring
+  // — the same fallback that already exists for any not-found note.
+  initLastNote: () => Promise<void>;
   clearError: () => void;
 }
 
 function messageFrom(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+// Fire-and-forget, like every other settings persistence call in this
+// codebase (setTheme, setView, ...) — losing this one write just means the
+// next launch doesn't restore this particular note, not a functional break.
+function persistLastNoteId(id: number | null): void {
+  const write =
+    id === null
+      ? settingsService.delete('last_note_id')
+      : settingsService.set('last_note_id', String(id));
+  write.catch((error: unknown) => {
+    console.error('[useNoteStore] failed to persist last_note_id setting', error);
+  });
 }
 
 async function fetchByFilter(
@@ -214,7 +242,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 
-  selectNote: (id) => set({ activeNoteId: id }),
+  selectNote: (id) => {
+    set({ activeNoteId: id });
+    persistLastNoteId(id);
+  },
 
   createNote: async () => {
     try {
@@ -222,6 +253,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       set({ filter: 'active', labelFilter: null, searchQuery: '', searchResults: [] });
       await get().loadNotes();
       set({ activeNoteId: note.id });
+      persistLastNoteId(note.id);
       void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to create note') });
@@ -395,6 +427,25 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to remove lock') });
       return false;
+    }
+  },
+
+  lockAllNotes: async () => {
+    set({ unlockedNoteIds: new Set() });
+    await get().loadNotes();
+  },
+
+  initLastNote: async () => {
+    try {
+      const stored = await settingsService.get('last_note_id');
+      if (stored === undefined) return;
+      const id = Number(stored);
+      if (!Number.isFinite(id)) return;
+      if (get().notes.some((note) => note.id === id)) {
+        set({ activeNoteId: id });
+      }
+    } catch (error) {
+      console.error('[useNoteStore] failed to load persisted last_note_id setting', error);
     }
   },
 

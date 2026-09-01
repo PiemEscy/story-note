@@ -251,6 +251,25 @@ export function PinIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
+// Phase 10's compact-mode toggle — no equivalent in the UI reference (its
+// own "Compact" toggle is reference-doc chrome, plain text with no icon),
+// so a standard four-corner-arrows "compress" glyph stands in, matching the
+// SunIcon/MoonIcon precedent for a control the reference demos but doesn't
+// actually provide app icon art for.
+export function CompactIcon({ className }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3m8-5h3a2 2 0 0 1 2 2v3" />
+    </svg>
+  );
+}
+
 export function CheckIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg

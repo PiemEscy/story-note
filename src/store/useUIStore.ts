@@ -67,6 +67,31 @@ interface UIState {
   isNoteDetailOpen: boolean;
   openNoteDetail: () => void;
   closeNoteDetail: () => void;
+
+  // Phase 10 — matches storynote-ui-reference.html's .is-compact (reduced
+  // padding on the list toolbar and note rows). Persisted to
+  // settings.compact_mode; built by mirroring setTheme/initTheme exactly.
+  compactMode: boolean;
+  setCompactMode: (compactMode: boolean) => void;
+  initCompactMode: () => Promise<void>;
+
+  // Phase 10 — storynote-ui-reference.html's .sidebar-resize-handle.
+  // Persisted to settings.sidebar_width (schema.md). Clamped the same way
+  // on both the write side (setSidebarWidth) and the read side
+  // (initSidebarWidth) — a value from a corrupted/hand-edited settings row
+  // shouldn't be able to wedge the sidebar at an unusable width any more
+  // than a live drag can.
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
+  initSidebarWidth: () => Promise<void>;
+}
+
+export const SIDEBAR_MIN_WIDTH = 180;
+export const SIDEBAR_MAX_WIDTH = 480;
+export const SIDEBAR_DEFAULT_WIDTH = 240;
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -129,6 +154,52 @@ export const useUIStore = create<UIState>((set, get) => ({
   isNoteDetailOpen: false,
   openNoteDetail: () => set({ isNoteDetailOpen: true }),
   closeNoteDetail: () => set({ isNoteDetailOpen: false }),
+
+  compactMode: false,
+
+  setCompactMode: (compactMode) => {
+    set({ compactMode });
+    settingsService.set('compact_mode', String(compactMode)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist compact_mode setting', error);
+    });
+  },
+
+  initCompactMode: async () => {
+    const before = get().compactMode;
+    let compactMode = before;
+    try {
+      const stored = await settingsService.get('compact_mode');
+      if (stored === 'true' || stored === 'false') compactMode = stored === 'true';
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted compact_mode setting', error);
+    }
+    if (get().compactMode !== before) return;
+    set({ compactMode });
+  },
+
+  sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
+
+  setSidebarWidth: (width) => {
+    const sidebarWidth = clampSidebarWidth(width);
+    set({ sidebarWidth });
+    settingsService.set('sidebar_width', String(sidebarWidth)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist sidebar_width setting', error);
+    });
+  },
+
+  initSidebarWidth: async () => {
+    const before = get().sidebarWidth;
+    let sidebarWidth = before;
+    try {
+      const stored = await settingsService.get('sidebar_width');
+      const parsed = stored !== undefined ? Number(stored) : NaN;
+      if (Number.isFinite(parsed)) sidebarWidth = clampSidebarWidth(parsed);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted sidebar_width setting', error);
+    }
+    if (get().sidebarWidth !== before) return;
+    set({ sidebarWidth });
+  },
 }));
 
 // Live-updates resolvedTheme (and the DOM attribute) when the OS theme

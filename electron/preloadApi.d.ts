@@ -3,6 +3,7 @@ import type { CreateNoteInput, ListNotesOptions, NoteCounts, UpdateNoteInput } f
 import type { LabelRow } from './db/types';
 import type { PublicNoteRow } from './ipc/notesHandlers';
 import type { IpcResult } from './ipc/types';
+import type { ShortcutAction } from './shortcuts';
 
 export interface StoryNoteAPI {
   notes: {
@@ -38,6 +39,9 @@ export interface StoryNoteAPI {
   };
   search: {
     query: (query: string) => Promise<IpcResult<PublicNoteRow[]>>;
+  };
+  shortcuts: {
+    onTrigger: (callback: (action: ShortcutAction) => void) => () => void;
   };
 }
 

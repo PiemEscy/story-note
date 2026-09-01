@@ -296,6 +296,30 @@ describe('listNotes sorting', () => {
       close();
     }
   });
+
+  // SQLite's CURRENT_TIMESTAMP only has second resolution, so two notes
+  // created/updated within the same real-world second can tie on every
+  // timestamp-based sortBy — without a tiebreaker, SQLite's own order for a
+  // tie is unspecified, which showed up as real flakiness in e2e/
+  // organization.spec.ts once enough concurrent app-init IPC calls (Phase
+  // 10) shifted request timing. notes.id DESC keeps ties deterministic
+  // ("most recently created first").
+  it('breaks a tie on the sort column by id (most recently created first)', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const first = createNote(db, { title: 'First' });
+      const second = createNote(db, { title: 'Second' });
+      const sameTimestamp = '2024-01-01 00:00:00';
+      setUpdatedAt(db, first.id, sameTimestamp);
+      setUpdatedAt(db, second.id, sameTimestamp);
+
+      const result = listNotes(db).map((n) => n.id);
+
+      expect(result).toEqual([second.id, first.id]);
+    } finally {
+      close();
+    }
+  });
 });
 
 describe('searchNotes', () => {

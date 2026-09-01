@@ -88,6 +88,14 @@ const SORT_COLUMNS: Record<NoteSortField, string> = {
 
 // Active notes only (excludes trashed and archived), pinned notes fixed
 // above unpinned regardless of the chosen sort field — per FR-6.1/FR-6.2.
+// `notes.id DESC` is a tiebreaker, not a real third sort key: SQLite's
+// CURRENT_TIMESTAMP only has second resolution, so two notes created or
+// updated within the same second would otherwise tie on every timestamp-
+// based sortBy and fall back to SQLite's own unspecified tie order (a code
+// review during Phase 9 flagged this as untested/undocumented; it started
+// actually flipping order between runs once Phase 10 added a few more
+// concurrent init calls that shift request timing slightly). id DESC keeps
+// ties landing in "most recently created first" order, deterministically.
 export function listNotes(db: Database.Database, options: ListNotesOptions = {}): NoteRow[] {
   const column = SORT_COLUMNS[options.sortBy ?? 'updated_at'];
   const direction = options.sortDirection === 'asc' ? 'ASC' : 'DESC';
@@ -97,7 +105,7 @@ export function listNotes(db: Database.Database, options: ListNotesOptions = {})
       `SELECT notes.* FROM notes
        LEFT JOIN labels ON labels.id = notes.label_id
        WHERE notes.deleted_at IS NULL AND notes.is_archived = 0
-       ORDER BY notes.is_pinned DESC, ${column} ${direction}`,
+       ORDER BY notes.is_pinned DESC, ${column} ${direction}, notes.id DESC`,
     )
     .all() as NoteRow[];
 }
@@ -168,7 +176,7 @@ export function searchNotes(db: Database.Database, query: string): NoteRow[] {
     .prepare(
       `SELECT * FROM notes
        WHERE deleted_at IS NULL AND (title LIKE ? OR content_plain LIKE ?)
-       ORDER BY updated_at DESC`,
+       ORDER BY updated_at DESC, id DESC`,
     )
     .all(pattern, pattern) as NoteRow[];
 }
@@ -176,14 +184,14 @@ export function searchNotes(db: Database.Database, query: string): NoteRow[] {
 export function listArchivedNotes(db: Database.Database): NoteRow[] {
   return db
     .prepare(
-      'SELECT * FROM notes WHERE deleted_at IS NULL AND is_archived = 1 ORDER BY updated_at DESC',
+      'SELECT * FROM notes WHERE deleted_at IS NULL AND is_archived = 1 ORDER BY updated_at DESC, id DESC',
     )
     .all() as NoteRow[];
 }
 
 export function listTrashedNotes(db: Database.Database): NoteRow[] {
   return db
-    .prepare('SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC')
+    .prepare('SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC')
     .all() as NoteRow[];
 }
 

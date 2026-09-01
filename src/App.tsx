@@ -10,14 +10,24 @@ function App(): React.JSX.Element {
   const loadNotes = useNoteStore((state) => state.loadNotes);
   const loadNoteCounts = useNoteStore((state) => state.loadNoteCounts);
   const initSort = useNoteStore((state) => state.initSort);
+  const initLastNote = useNoteStore((state) => state.initLastNote);
+  const createNote = useNoteStore((state) => state.createNote);
+  const lockAllNotes = useNoteStore((state) => state.lockAllNotes);
   const error = useNoteStore((state) => state.error);
   const clearError = useNoteStore((state) => state.clearError);
   const loadLabels = useLabelStore((state) => state.loadLabels);
   const initTheme = useUIStore((state) => state.initTheme);
   const initView = useUIStore((state) => state.initView);
+  const initCompactMode = useUIStore((state) => state.initCompactMode);
+  const initSidebarWidth = useUIStore((state) => state.initSidebarWidth);
 
   useEffect(() => {
-    void loadNotes();
+    // initLastNote needs the 'active' list actually loaded before it can
+    // tell whether the persisted note still exists — chained after
+    // loadNotes() resolves rather than fired concurrently alongside it.
+    void loadNotes().then(() => {
+      void initLastNote();
+    });
     void loadNoteCounts();
     // Runs after the initial loadNotes() above — if the persisted sort
     // differs from the default it started with, initSort() re-triggers its
@@ -26,7 +36,31 @@ function App(): React.JSX.Element {
     void loadLabels();
     void initTheme();
     void initView();
-  }, [loadNotes, loadNoteCounts, initSort, loadLabels, initTheme, initView]);
+    void initCompactMode();
+    void initSidebarWidth();
+  }, [
+    loadNotes,
+    loadNoteCounts,
+    initSort,
+    initLastNote,
+    loadLabels,
+    initTheme,
+    initView,
+    initCompactMode,
+    initSidebarWidth,
+  ]);
+
+  // Phase 10's global keyboard shortcuts (electron/shortcuts.ts) fire from
+  // the main process regardless of which window/app has focus — 'new-note'
+  // and 'quick-lock' are handled here since they're store-level actions;
+  // 'focus-search' is handled in Sidebar.tsx instead, since focusing an
+  // input needs the ref only that component holds.
+  useEffect(() => {
+    return window.storyNoteAPI.shortcuts.onTrigger((action) => {
+      if (action === 'new-note') void createNote();
+      if (action === 'quick-lock') void lockAllNotes();
+    });
+  }, [createNote, lockAllNotes]);
 
   return (
     <div className="relative flex h-full overflow-hidden border-t border-[var(--border)]">

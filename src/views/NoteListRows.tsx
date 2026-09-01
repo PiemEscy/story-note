@@ -11,6 +11,9 @@ interface NoteListRowsProps {
   labels: LabelRow[];
   unlockedNoteIds: Set<number>;
   onSelect: (id: number) => void;
+  // storynote-ui-reference.html's .is-compact .note-list-item — reduced
+  // top/bottom padding only (left/right untouched).
+  compactMode: boolean;
 }
 
 // The "List" view's row style (storynote-ui-reference.html's .note-list-item)
@@ -22,6 +25,7 @@ function NoteListRows({
   labels,
   unlockedNoteIds,
   onSelect,
+  compactMode,
 }: NoteListRowsProps): React.JSX.Element {
   return (
     <>
@@ -34,7 +38,9 @@ function NoteListRows({
             key={note.id}
             type="button"
             onClick={() => onSelect(note.id)}
-            className={`flex w-full items-start gap-2.5 rounded-md border p-2.5 text-left transition-colors ${
+            className={`flex w-full items-start gap-2.5 rounded-md border px-2.5 text-left transition-colors ${
+              compactMode ? 'py-1' : 'py-2.5'
+            } ${
               activeNoteId === note.id
                 ? 'border-[rgba(37,99,235,0.25)] bg-[var(--bg-active)]'
                 : 'border-transparent hover:bg-[var(--bg-hover)]'

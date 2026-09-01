@@ -25,3 +25,12 @@ export function setSetting(db: Database.Database, key: string, value: string): v
 export function deleteSetting(db: Database.Database, key: string): void {
   db.prepare('DELETE FROM settings WHERE key = ?').run(key);
 }
+
+// Several Phase 10 settings (start_minimized, launch_on_startup,
+// always_on_top, compact_mode) are all "true"/"false" strings (schema.md) —
+// a shared reader rather than repeating `=== 'true'` at every call site.
+// Missing/anything-other-than-"true" both mean off, matching every one of
+// those settings' documented default (unset = disabled).
+export function getBooleanSetting(db: Database.Database, key: string): boolean {
+  return getSetting(db, key) === 'true';
+}

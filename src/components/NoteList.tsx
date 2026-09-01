@@ -83,6 +83,7 @@ function NoteList(): React.JSX.Element | null {
   const setView = useUIStore((state) => state.setView);
   const isNoteDetailOpen = useUIStore((state) => state.isNoteDetailOpen);
   const openNoteDetail = useUIStore((state) => state.openNoteDetail);
+  const compactMode = useUIStore((state) => state.compactMode);
 
   const [pendingPurgeId, setPendingPurgeId] = useState<number | null>(null);
 
@@ -157,7 +158,13 @@ function NoteList(): React.JSX.Element | null {
         isWideView ? 'w-full min-w-0 flex-1' : 'w-80 min-w-[240px] shrink'
       }`}
     >
-      <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface-raised)] px-3.5 py-3">
+      <div
+        className={`flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface-raised)] px-3.5 ${
+          // storynote-ui-reference.html's .is-compact .app-toolbar (reduced
+          // top/bottom padding only — left/right untouched).
+          compactMode ? 'py-1' : 'py-3'
+        }`}
+      >
         <h2 className="m-0 min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">
           {isSearching
             ? `Search: "${searchQuery.trim()}"`
@@ -284,6 +291,7 @@ function NoteList(): React.JSX.Element | null {
               labels={labels}
               unlockedNoteIds={unlockedNoteIds}
               onSelect={handleSelect}
+              compactMode={compactMode}
             />
           )}
         {(isSearching || filter !== 'trash') && effectiveView === 'details' && (

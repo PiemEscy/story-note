@@ -84,10 +84,11 @@ function installMockApi(
   const settingsApi = {
     get: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     set: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+    delete: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     ...settingsOverrides,
   };
   // Partial mock is sufficient — the store only touches notes/labels.assign/
-  // search.query/settings.get+set. `as unknown as StoryNoteAPI` rather than
+  // search.query/settings.get+set+delete. `as unknown as StoryNoteAPI` rather than
   // `@ts-expect-error`: that directive only suppresses an error reported on
   // the exact next line, and Prettier reformatting this object literal
   // across multiple lines moves the real errors onto the individual
@@ -581,6 +582,25 @@ describe('removeNoteLock', () => {
   });
 });
 
+describe('lockAllNotes', () => {
+  it('clears unlockedNoteIds and reloads notes so previously-unlocked content is re-redacted', async () => {
+    const stillRedacted = note(1, { is_locked: 1, content_plain: '' });
+    const api = installMockApi({
+      list: vi.fn().mockResolvedValue({ ok: true, data: [stillRedacted] }),
+    });
+    useNoteStore.setState({
+      unlockedNoteIds: new Set([1, 2]),
+      notes: [note(1, { is_locked: 1, content_plain: 'was visible' })],
+    });
+
+    await useNoteStore.getState().lockAllNotes();
+
+    expect(useNoteStore.getState().unlockedNoteIds.size).toBe(0);
+    expect(api.list).toHaveBeenCalled();
+    expect(useNoteStore.getState().notes).toEqual([stillRedacted]);
+  });
+});
+
 describe('togglePin', () => {
   it('calls setPinned and reloads the list (pin changes sort order, not just the note itself)', async () => {
     const pinned = note(1, { is_pinned: 1 });
@@ -693,5 +713,69 @@ describe('initSort', () => {
     await initPromise;
 
     expect(useNoteStore.getState().sortBy).toBe('label');
+  });
+});
+
+describe('selectNote', () => {
+  it('sets activeNoteId and persists it as last_note_id', async () => {
+    installMockApi();
+
+    useNoteStore.getState().selectNote(5);
+
+    expect(useNoteStore.getState().activeNoteId).toBe(5);
+    await Promise.resolve();
+    expect(window.storyNoteAPI.settings.set).toHaveBeenCalledWith('last_note_id', '5');
+  });
+
+  it('deleting the setting instead of writing an empty string when selecting null', async () => {
+    installMockApi();
+
+    useNoteStore.getState().selectNote(null);
+
+    expect(useNoteStore.getState().activeNoteId).toBeNull();
+    await Promise.resolve();
+    expect(window.storyNoteAPI.settings.delete).toHaveBeenCalledWith('last_note_id');
+    expect(window.storyNoteAPI.settings.set).not.toHaveBeenCalled();
+  });
+});
+
+describe('initLastNote', () => {
+  it('selects the persisted note if it exists in the currently-loaded notes', async () => {
+    installMockApi({}, {}, {}, { get: vi.fn().mockResolvedValue({ ok: true, data: '2' }) });
+    useNoteStore.setState({ notes: [note(1), note(2), note(3)] });
+
+    await useNoteStore.getState().initLastNote();
+
+    expect(useNoteStore.getState().activeNoteId).toBe(2);
+  });
+
+  it('leaves activeNoteId untouched if the persisted note no longer exists', async () => {
+    installMockApi({}, {}, {}, { get: vi.fn().mockResolvedValue({ ok: true, data: '999' }) });
+    useNoteStore.setState({ notes: [note(1)], activeNoteId: null });
+
+    await useNoteStore.getState().initLastNote();
+
+    expect(useNoteStore.getState().activeNoteId).toBeNull();
+  });
+
+  it('does nothing when nothing is persisted', async () => {
+    installMockApi({}, {}, {}, { get: vi.fn().mockResolvedValue({ ok: true, data: undefined }) });
+    useNoteStore.setState({ notes: [note(1)], activeNoteId: null });
+
+    await useNoteStore.getState().initLastNote();
+
+    expect(useNoteStore.getState().activeNoteId).toBeNull();
+  });
+
+  it('does not throw when the settings IPC call fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    installMockApi(
+      {},
+      {},
+      {},
+      { get: vi.fn().mockResolvedValue({ ok: false, message: 'db is locked' }) },
+    );
+
+    await expect(useNoteStore.getState().initLastNote()).resolves.toBeUndefined();
   });
 });

@@ -3,7 +3,7 @@ import { useNoteStore } from '../store/useNoteStore';
 import type { NoteFilter } from '../store/useNoteStore';
 import { useLabelStore, resolveLabelColor } from '../store/useLabelStore';
 import type { LabelRow } from '../services/labelsService';
-import { useUIStore } from '../store/useUIStore';
+import { useUIStore, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH } from '../store/useUIStore';
 import type { ThemeMode } from '../store/useUIStore';
 import {
   AllNotesIcon,
@@ -14,6 +14,7 @@ import {
   MoonIcon,
   EditIcon,
   SearchIcon,
+  CompactIcon,
 } from './icons';
 import LabelModal from './LabelModal';
 
@@ -25,9 +26,11 @@ const THEME_CYCLE: Record<ThemeMode, ThemeMode> = {
 const THEME_LABEL: Record<ThemeMode, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 
 // Pinned/Locked nav items from the UI reference are deliberately omitted
-// here — they belong to Phase 9 (pin) and Phase 8 (lock), neither of which
-// exists yet. Rendering them now would be dead UI (code-style.md: no
-// half-finished implementations).
+// here — pin (Phase 9) and lock (Phase 8) are both implemented now, but
+// neither phase's own checklist ever called for a dedicated Sidebar filter
+// for them (unlike "Pinned"/"Locked" as counts in the reference), so adding
+// one now would be UI with no requirement behind it, not "finishing" either
+// phase.
 const NAV_ITEMS: {
   filter: NoteFilter;
   label: string;
@@ -52,6 +55,10 @@ function Sidebar(): React.JSX.Element {
   const theme = useUIStore((state) => state.theme);
   const resolvedTheme = useUIStore((state) => state.resolvedTheme);
   const setTheme = useUIStore((state) => state.setTheme);
+  const compactMode = useUIStore((state) => state.compactMode);
+  const setCompactMode = useUIStore((state) => state.setCompactMode);
+  const sidebarWidth = useUIStore((state) => state.sidebarWidth);
+  const setSidebarWidth = useUIStore((state) => state.setSidebarWidth);
 
   // 'new' opens the modal in create mode; a LabelRow opens it pre-filled for
   // editing (with a delete option); null keeps it closed.
@@ -73,14 +80,71 @@ function Sidebar(): React.JSX.Element {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Phase 10's global Ctrl+Shift+F shortcut (electron/shortcuts.ts) — fires
+  // even when the window wasn't focused, so it also needs to bring the
+  // window forward (handled main-process-side before this ever fires) and
+  // then land focus here, same as the in-app Ctrl+K above.
+  useEffect(() => {
+    return window.storyNoteAPI.shortcuts.onTrigger((action) => {
+      if (action === 'focus-search') searchInputRef.current?.focus();
+    });
+  }, []);
+
+  // storynote-ui-reference.html's .sidebar-resize-handle — a drag-to-resize
+  // handle on the sidebar's right edge. `dragWidth` (not the store's
+  // sidebarWidth directly) tracks the live value while dragging so every
+  // mousemove doesn't also fire a settingsService.set() IPC call; only
+  // mouseup calls setSidebarWidth() to actually persist the final value —
+  // same "don't spam IPC on every intermediate frame" reasoning as
+  // electron/main.ts's debounced window-bounds save.
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const handleResizeStart = (event: React.MouseEvent): void => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+
+    const handleMouseMove = (moveEvent: MouseEvent): void => {
+      const next = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, startWidth + (moveEvent.clientX - startX)),
+      );
+      setDragWidth(next);
+    };
+    const handleMouseUp = (upEvent: MouseEvent): void => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      const finalWidth = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, startWidth + (upEvent.clientX - startX)),
+      );
+      setSidebarWidth(finalWidth);
+      setDragWidth(null);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   return (
     // storynote-ui-reference.html's .sidebar targets 240px but only sets
     // min-width:180px (no flex-shrink override, so it's shrinkable by
     // default) — this used to be shrink-0 (permanently rigid 240px), which
     // combined with NoteList.tsx's own rigid Sidebar-view width meant a
     // narrow window just clipped content past the edge instead of
-    // reflowing, since neither pane could give up any space at all.
-    <aside className="flex w-60 min-w-[180px] shrink flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]">
+    // reflowing, since neither pane could give up any space at all. Width is
+    // now the user's resized value (dragWidth while actively dragging,
+    // sidebarWidth otherwise) rather than a fixed w-60 — `shrink` is kept so
+    // the flex algorithm can still shrink it below that chosen width down to
+    // min-w-[180px] at a narrow window width, same as before.
+    <aside
+      className="relative flex min-w-[180px] shrink flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)]"
+      style={{ width: dragWidth ?? sidebarWidth }}
+    >
+      <div
+        role="presentation"
+        title="Resizable sidebar"
+        onMouseDown={handleResizeStart}
+        className="absolute top-0 -right-[3px] z-[5] h-full w-1.5 cursor-col-resize"
+      />
       <div className="flex items-center gap-2 px-3.5 pt-3.5 pb-2.5">
         <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-[var(--accent)] to-[#4F7CF7] text-xs font-bold text-white">
           SN
@@ -224,6 +288,22 @@ function Sidebar(): React.JSX.Element {
           ) : (
             <SunIcon className="h-3.5 w-3.5" />
           )}
+        </button>
+        <button
+          type="button"
+          title={
+            compactMode
+              ? 'Compact mode: on (click to turn off)'
+              : 'Compact mode: off (click to turn on)'
+          }
+          onClick={() => setCompactMode(!compactMode)}
+          className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md border transition-colors hover:bg-[var(--bg-hover)] ${
+            compactMode
+              ? 'border-[var(--accent)] text-[var(--accent)]'
+              : 'border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <CompactIcon className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"

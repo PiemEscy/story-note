@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from './ipc/channels';
+import type { ShortcutAction } from './shortcuts';
 
 // Named, single-purpose methods only — no raw ipcRenderer passthrough.
 // Each maps to exactly one IPC channel (code-style.md).
@@ -44,6 +45,20 @@ const storyNoteAPI = {
   },
   search: {
     query: (query: string) => ipcRenderer.invoke(IPC_CHANNELS.search.query, query),
+  },
+  shortcuts: {
+    // Main -> renderer push, not invoke/response — the only channel of this
+    // shape in the app. Wraps ipcRenderer.on() in a named method (never
+    // exposed raw, per code-style.md) and returns an unsubscribe function
+    // for a React effect's cleanup.
+    onTrigger: (callback: (action: ShortcutAction) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, action: ShortcutAction): void =>
+        callback(action);
+      ipcRenderer.on(IPC_CHANNELS.shortcuts.trigger, listener);
+      return (): void => {
+        ipcRenderer.removeListener(IPC_CHANNELS.shortcuts.trigger, listener);
+      };
+    },
   },
 };
 

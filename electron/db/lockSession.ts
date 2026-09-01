@@ -28,6 +28,12 @@ export interface LockSession {
   unlock: (noteId: number) => void;
   recordFailedAttempt: (noteId: number) => void;
   isLockedOut: (noteId: number) => boolean;
+  // Phase 10's "quick-lock" global shortcut — re-locks every note unlocked
+  // this session at once (a panic button, not a per-note action), without
+  // touching is_locked/password_hash for any of them. Failed-attempt counts
+  // are left alone: this isn't a response to a wrong guess, so it shouldn't
+  // reset anyone's lockout progress.
+  lockAll: () => void;
 }
 
 export function createLockSession(): LockSession {
@@ -43,5 +49,8 @@ export function createLockSession(): LockSession {
       failedAttempts.set(noteId, (failedAttempts.get(noteId) ?? 0) + 1);
     },
     isLockedOut: (noteId) => (failedAttempts.get(noteId) ?? 0) >= MAX_FAILED_ATTEMPTS,
+    lockAll: () => {
+      unlockedIds.clear();
+    },
   };
 }

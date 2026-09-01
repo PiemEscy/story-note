@@ -55,4 +55,30 @@ describe('createLockSession', () => {
 
     expect(session.isLockedOut(1)).toBe(false);
   });
+
+  it('lockAll re-locks every unlocked note at once', () => {
+    const session = createLockSession();
+    session.unlock(1);
+    session.unlock(2);
+
+    session.lockAll();
+
+    expect(session.isUnlocked(1)).toBe(false);
+    expect(session.isUnlocked(2)).toBe(false);
+  });
+
+  it('lockAll does not reset a note’s failed-attempt count (not a response to a wrong guess)', () => {
+    const session = createLockSession();
+    for (let i = 0; i < 5; i++) {
+      session.recordFailedAttempt(1);
+    }
+
+    session.lockAll();
+    session.recordFailedAttempt(1);
+    for (let i = 0; i < 4; i++) {
+      session.recordFailedAttempt(1);
+    }
+
+    expect(session.isLockedOut(1)).toBe(true);
+  });
 });
