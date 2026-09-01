@@ -133,9 +133,10 @@ test('start_minimized keeps the window hidden on the next launch', async () => {
 });
 
 // settings.always_on_top — applied as a BrowserWindow constructor option at
-// launch; also live-toggleable from the tray's context menu (persisted
+// launch; also live-toggleable both from the tray's context menu (persisted
 // there via a custom setAlwaysOnTop dep in main.ts, not exercised here since
-// there's no way to drive a real OS tray-menu click from a test).
+// there's no way to drive a real OS tray-menu click from a test) and, since
+// Phase 11, from the Settings panel (exercised below).
 test('always_on_top is applied to the window at launch', async () => {
   const isolated = createIsolatedUserData();
   let app = await isolated.launch();
@@ -155,6 +156,41 @@ test('always_on_top is applied to the window at launch', async () => {
   } finally {
     await app.close();
     await isolated.cleanup();
+  }
+});
+
+// The Settings panel's own toggle (electron/ipc/windowHandlers.ts) — unlike
+// the tray menu, this one is driveable from a test. Deliberately not
+// exercising the neighboring "Launch at startup" toggle here: that one calls
+// the real app.setLoginItemSettings, which would register this test run's
+// actual Electron binary to start at login on whatever machine runs this
+// suite — a genuine, unwanted OS side effect, not something to trigger for
+// real just to test it. electron/loginItem.test.ts and
+// electron/ipc/windowHandlers.test.ts already cover that logic with an
+// injected setLoginItemSettings mock instead.
+test('the Settings panel Always on top toggle takes effect immediately, and persists', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+
+    const isAlwaysOnTop = (): Promise<boolean> =>
+      app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop());
+    expect(await isAlwaysOnTop()).toBe(false);
+
+    await page.getByTitle('Settings').click();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+    const alwaysOnTopToggle = dialog.getByRole('checkbox', { name: /Always on top/ });
+    await expect(alwaysOnTopToggle).not.toBeChecked();
+
+    await alwaysOnTopToggle.click();
+
+    await expect(alwaysOnTopToggle).toBeChecked();
+    await expect.poll(isAlwaysOnTop).toBe(true);
+    const persisted = await page.evaluate(() => window.storyNoteAPI.settings.get('always_on_top'));
+    expect(persisted).toEqual({ ok: true, data: 'true' });
+  } finally {
+    await cleanup();
   }
 });
 
@@ -290,10 +326,15 @@ test('compact mode reduces note row height and persists the choice', async () =>
     const heightBefore = (await row.boundingBox())?.height;
     expect(heightBefore).toBeGreaterThan(0);
 
-    await page.getByTitle('Compact mode: off (click to turn on)').click();
+    await page.getByTitle('Settings').click();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+    const compactToggle = dialog.getByRole('checkbox', { name: /Compact mode/ });
+    await expect(compactToggle).not.toBeChecked();
+    await compactToggle.click();
+    await expect(compactToggle).toBeChecked();
+    await dialog.getByRole('button', { name: 'Close' }).click();
 
     await expect.poll(async () => (await row.boundingBox())?.height).toBeLessThan(heightBefore!);
-    await expect(page.getByTitle('Compact mode: on (click to turn off)')).toBeVisible();
 
     const persisted = await page.evaluate(() => window.storyNoteAPI.settings.get('compact_mode'));
     expect(persisted).toEqual({ ok: true, data: 'true' });

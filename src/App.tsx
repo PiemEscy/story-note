@@ -20,6 +20,9 @@ function App(): React.JSX.Element {
   const initView = useUIStore((state) => state.initView);
   const initCompactMode = useUIStore((state) => state.initCompactMode);
   const initSidebarWidth = useUIStore((state) => state.initSidebarWidth);
+  const initAlwaysOnTop = useUIStore((state) => state.initAlwaysOnTop);
+  const initLaunchOnStartup = useUIStore((state) => state.initLaunchOnStartup);
+  const initStartMinimized = useUIStore((state) => state.initStartMinimized);
 
   useEffect(() => {
     // initLastNote needs the 'active' list actually loaded before it can
@@ -38,6 +41,9 @@ function App(): React.JSX.Element {
     void initView();
     void initCompactMode();
     void initSidebarWidth();
+    void initAlwaysOnTop();
+    void initLaunchOnStartup();
+    void initStartMinimized();
   }, [
     loadNotes,
     loadNoteCounts,
@@ -48,6 +54,9 @@ function App(): React.JSX.Element {
     initView,
     initCompactMode,
     initSidebarWidth,
+    initAlwaysOnTop,
+    initLaunchOnStartup,
+    initStartMinimized,
   ]);
 
   // Phase 10's global keyboard shortcuts (electron/shortcuts.ts) fire from
