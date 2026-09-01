@@ -165,23 +165,70 @@ body {
 .tiptap s {
   opacity: 0.6;
 }
+/* table-layout: fixed (not the browser default, auto) is the actual fix for
+   a bug a code review caught: with auto layout, the browser recalculates
+   every column's width from its *current* content on every keystroke, so
+   typing in one cell visibly pushed/squeezed its neighbors instead of
+   wrapping within a stable width. @tiptap/extension-table's own colgroup/col
+   elements (createColGroup, always rendered — carrying each column's
+   colwidth attribute, or cellMinWidth as the default before anyone drags to
+   resize) are what fixed layout actually measures against; auto layout
+   mostly ignores them once real content is present. */
 .tiptap table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   margin: 10px 0 18px;
   font-family: var(--font-ui);
   font-size: 13px;
 }
+/* @tiptap/extension-table's TableView always wraps the table in this div in
+   editable mode (not just when resizable) — horizontal scroll for a table
+   whose fixed columns together exceed the note's content width, rather than
+   overflowing the page or shrinking every column to fit. */
+.tiptap .tableWrapper {
+  overflow-x: auto;
+}
 .tiptap th,
 .tiptap td {
+  /* Anchors the column-resize-handle widget below (prosemirror-tables
+     inserts it as a normal in-flow child of the cell) so it can be
+     absolutely positioned to span the cell's full height as a thin bar,
+     rather than collapsing to the empty div's natural 0 height. */
+  position: relative;
   border: 1px solid var(--border);
   padding: 7px 10px;
   text-align: left;
+  /* Fixed layout sizes columns from colgroup, but a cell's own content can
+     still force the ROW taller — word-wrap/overflow-wrap so one long
+     unbroken token (a URL, say) wraps inside the fixed column width
+     instead of forcing the column wider to fit it on one line. */
+  overflow-wrap: break-word;
 }
 .tiptap th {
   background: var(--bg-hover);
   font-weight: 600;
   font-size: 12px;
+}
+/* @tiptap/extension-table's ColumnResizing plugin renders this as an empty
+   div at the end of the rightmost cell of each resizable column boundary,
+   in editable mode whenever Table.configure({ resizable: true }) — mouse
+   handling is all prosemirror-tables' own (tracked via real mousedown/
+   mousemove/mouseup, nothing CSS-driven), but an empty div with no
+   explicit height collapses to 0 height, making it real but genuinely
+   invisible and unclickable without this. Deliberately not hidden by
+   default and shown only on :hover/drag — that needs pointer-events left
+   at the default (auto) so a mousedown can actually reach it and start a
+   drag in the first place, which a hide/reveal approach built on
+   pointer-events would fight against. */
+.tiptap .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--accent);
+  cursor: col-resize;
 }
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
