@@ -46,6 +46,7 @@ beforeEach(() => {
     isNoteDetailOpen: false,
     compactMode: false,
     sidebarWidth: 240,
+    sidebarCollapsed: false,
     alwaysOnTop: false,
     launchOnStartup: false,
     startMinimized: false,
@@ -334,6 +335,54 @@ describe('useUIStore', () => {
         await initPromise;
 
         expect(useUIStore.getState().sidebarWidth).toBe(350);
+      });
+    });
+  });
+
+  describe('sidebar collapsed', () => {
+    it('defaults sidebarCollapsed to false', () => {
+      expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    });
+
+    it('updates sidebarCollapsed via setSidebarCollapsed, and persists the choice', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setSidebarCollapsed(true);
+
+      expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('sidebar_collapsed', 'true');
+    });
+
+    describe('initSidebarCollapsed', () => {
+      it('applies a persisted "true" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'true' }) });
+
+        await useUIStore.getState().initSidebarCollapsed();
+
+        expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+      });
+
+      it('falls back to the current default when nothing is persisted', async () => {
+        await useUIStore.getState().initSidebarCollapsed();
+
+        expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+      });
+
+      it('does not clobber a value set via setSidebarCollapsed() while the IPC call is still in flight', async () => {
+        let resolveGet!: (value: { ok: true; data: string }) => void;
+        const pending = new Promise<{ ok: true; data: string }>((resolve) => {
+          resolveGet = resolve;
+        });
+        installMockApi({ get: vi.fn().mockReturnValue(pending) });
+
+        const initPromise = useUIStore.getState().initSidebarCollapsed();
+        useUIStore.getState().setSidebarCollapsed(true);
+
+        resolveGet({ ok: true, data: 'false' }); // the (now-stale) persisted value
+        await initPromise;
+
+        expect(useUIStore.getState().sidebarCollapsed).toBe(true);
       });
     });
   });
