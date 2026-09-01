@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { settingsService } from '../services/settingsService';
+import { windowService } from '../services/windowService';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 type ResolvedTheme = 'dark' | 'light';
@@ -84,6 +85,32 @@ interface UIState {
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
   initSidebarWidth: () => Promise<void>;
+
+  // Phase 11 — Settings panel. Unlike compactMode/theme above, these two go
+  // through windowService (not settingsService directly): the live window
+  // and the OS login-item registration both need to change immediately, not
+  // just on the next launch (electron/ipc/windowHandlers.ts persists the
+  // setting as part of the same call).
+  alwaysOnTop: boolean;
+  setAlwaysOnTop: (value: boolean) => Promise<void>;
+  initAlwaysOnTop: () => Promise<void>;
+
+  launchOnStartup: boolean;
+  setLaunchOnStartup: (value: boolean) => Promise<void>;
+  initLaunchOnStartup: () => Promise<void>;
+
+  // Only matters on the *next* launch (electron/main.ts's createWindow reads
+  // it once, at construction) — no live window effect to apply now, so this
+  // persists straight through settingsService like compactMode/theme.
+  startMinimized: boolean;
+  setStartMinimized: (value: boolean) => void;
+  initStartMinimized: () => Promise<void>;
+}
+
+function parseBooleanSetting(stored: string | undefined, fallback: boolean): boolean {
+  if (stored === 'true') return true;
+  if (stored === 'false') return false;
+  return fallback;
 }
 
 export const SIDEBAR_MIN_WIDTH = 180;
@@ -199,6 +226,83 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
     if (get().sidebarWidth !== before) return;
     set({ sidebarWidth });
+  },
+
+  alwaysOnTop: false,
+
+  setAlwaysOnTop: async (value) => {
+    // Applied optimistically, before the IPC round trip resolves — matches
+    // setCompactMode/setTheme's synchronous-set pattern above so the
+    // Settings panel's checkbox responds immediately; reverted if the main
+    // process call itself fails, rather than left showing a value that
+    // silently didn't take.
+    set({ alwaysOnTop: value });
+    try {
+      await windowService.setAlwaysOnTop(value);
+    } catch (error) {
+      console.error('[useUIStore] failed to apply always_on_top setting', error);
+      set({ alwaysOnTop: !value });
+    }
+  },
+
+  initAlwaysOnTop: async () => {
+    const before = get().alwaysOnTop;
+    let alwaysOnTop = before;
+    try {
+      const stored = await settingsService.get('always_on_top');
+      alwaysOnTop = parseBooleanSetting(stored, before);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted always_on_top setting', error);
+    }
+    if (get().alwaysOnTop !== before) return;
+    set({ alwaysOnTop });
+  },
+
+  launchOnStartup: false,
+
+  setLaunchOnStartup: async (value) => {
+    set({ launchOnStartup: value });
+    try {
+      await windowService.setLaunchOnStartup(value);
+    } catch (error) {
+      console.error('[useUIStore] failed to apply launch_on_startup setting', error);
+      set({ launchOnStartup: !value });
+    }
+  },
+
+  initLaunchOnStartup: async () => {
+    const before = get().launchOnStartup;
+    let launchOnStartup = before;
+    try {
+      const stored = await settingsService.get('launch_on_startup');
+      launchOnStartup = parseBooleanSetting(stored, before);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted launch_on_startup setting', error);
+    }
+    if (get().launchOnStartup !== before) return;
+    set({ launchOnStartup });
+  },
+
+  startMinimized: false,
+
+  setStartMinimized: (value) => {
+    set({ startMinimized: value });
+    settingsService.set('start_minimized', String(value)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist start_minimized setting', error);
+    });
+  },
+
+  initStartMinimized: async () => {
+    const before = get().startMinimized;
+    let startMinimized = before;
+    try {
+      const stored = await settingsService.get('start_minimized');
+      startMinimized = parseBooleanSetting(stored, before);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted start_minimized setting', error);
+    }
+    if (get().startMinimized !== before) return;
+    set({ startMinimized });
   },
 }));
 

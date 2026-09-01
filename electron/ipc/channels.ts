@@ -43,4 +43,32 @@ export const IPC_CHANNELS = {
   shortcuts: {
     trigger: 'storynote:shortcuts:trigger',
   },
+  // Registered unconditionally at app startup (electron/ipc/appHandlers.ts),
+  // unlike every channel above — those all need `db` open first, which is
+  // exactly what might not be true yet when the database is in password
+  // mode (ADR-001). isLocked/unlock let the renderer show an unlock screen
+  // and drive the rest of startup, instead of every other IPC call just
+  // failing with "no handler registered" until someone submits a password.
+  app: {
+    isLocked: 'storynote:app:is-locked',
+    unlock: 'storynote:app:unlock',
+  },
+  // Only meaningful once `db` is open — registered alongside the notes/
+  // labels/etc. handlers in registerIpcHandlers(), not with app.* above.
+  keyMode: {
+    get: 'storynote:key-mode:get',
+    setPassword: 'storynote:key-mode:set-password',
+    setOs: 'storynote:key-mode:set-os',
+  },
+  // Settings that need a *live* main-process effect beyond persistence
+  // (settings:set alone would only apply on the next launch) — the Settings
+  // panel's Always on Top / launch-at-login toggles go through these instead
+  // of the generic settings channel. Channel strings stay under the
+  // `settings` domain (code-style.md: "keep domain names aligned with the
+  // scopes in git-commit-style.md") even though the grouping key here is
+  // `window` for readability at the call sites.
+  window: {
+    setAlwaysOnTop: 'storynote:settings:set-always-on-top',
+    setLaunchOnStartup: 'storynote:settings:set-launch-on-startup',
+  },
 } as const;

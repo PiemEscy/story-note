@@ -189,25 +189,30 @@ test('sidebar shows accurate All Notes/Archived/Trash/label counts, kept live ac
   }
 });
 
-test('theme toggle cycles system -> light -> dark and persists the choice', async () => {
+test('selecting a theme in Settings applies it and persists the choice', async () => {
   const { app, cleanup } = await launchIsolatedApp();
 
   try {
     const page = await app.firstWindow();
-    const toggle = page.getByTitle(/^Theme: /);
-    await expect(toggle).toBeVisible();
+    // Wait for the app itself to render before reading theme state below —
+    // document.documentElement.dataset.theme is set synchronously at module
+    // load (main.tsx), but a note-taking app being "loaded" for the rest of
+    // this test means the Sidebar's own controls are up.
+    await expect(page.getByTitle('Settings')).toBeVisible();
 
     const readTheme = (): Promise<string | undefined> =>
       page.evaluate(() => document.documentElement.dataset.theme);
     const initial = await readTheme();
     expect(['light', 'dark']).toContain(initial);
 
-    await toggle.click(); // -> light
-    await expect(toggle).toHaveAttribute('title', 'Theme: Light (click to change)');
+    await page.getByTitle('Settings').click();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole('button', { name: 'Light' }).click();
     await expect.poll(readTheme).toBe('light');
 
-    await toggle.click(); // -> dark
-    await expect(toggle).toHaveAttribute('title', 'Theme: Dark (click to change)');
+    await dialog.getByRole('button', { name: 'Dark' }).click();
     await expect.poll(readTheme).toBe('dark');
 
     const persisted = await page.evaluate(() => window.storyNoteAPI.settings.get('theme'));

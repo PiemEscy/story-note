@@ -4,26 +4,17 @@ import type { NoteFilter } from '../store/useNoteStore';
 import { useLabelStore, resolveLabelColor } from '../store/useLabelStore';
 import type { LabelRow } from '../services/labelsService';
 import { useUIStore, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH } from '../store/useUIStore';
-import type { ThemeMode } from '../store/useUIStore';
 import {
   AllNotesIcon,
   ArchivedIcon,
   TrashNavIcon,
   NewNoteIcon,
-  SunIcon,
-  MoonIcon,
   EditIcon,
   SearchIcon,
-  CompactIcon,
+  SettingsIcon,
 } from './icons';
 import LabelModal from './LabelModal';
-
-const THEME_CYCLE: Record<ThemeMode, ThemeMode> = {
-  system: 'light',
-  light: 'dark',
-  dark: 'system',
-};
-const THEME_LABEL: Record<ThemeMode, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+import SettingsModal from './SettingsModal';
 
 // Pinned/Locked nav items from the UI reference are deliberately omitted
 // here — pin (Phase 9) and lock (Phase 8) are both implemented now, but
@@ -52,17 +43,13 @@ function Sidebar(): React.JSX.Element {
   const searchQuery = useNoteStore((state) => state.searchQuery);
   const search = useNoteStore((state) => state.search);
   const labels = useLabelStore((state) => state.labels);
-  const theme = useUIStore((state) => state.theme);
-  const resolvedTheme = useUIStore((state) => state.resolvedTheme);
-  const setTheme = useUIStore((state) => state.setTheme);
-  const compactMode = useUIStore((state) => state.compactMode);
-  const setCompactMode = useUIStore((state) => state.setCompactMode);
   const sidebarWidth = useUIStore((state) => state.sidebarWidth);
   const setSidebarWidth = useUIStore((state) => state.setSidebarWidth);
 
   // 'new' opens the modal in create mode; a LabelRow opens it pre-filled for
   // editing (with a delete option); null keeps it closed.
   const [editingLabel, setEditingLabel] = useState<LabelRow | 'new' | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // "Accessible from anywhere" (Phase 7): Sidebar is always mounted
   // regardless of filter/view, so a persistent search box here already
@@ -279,34 +266,16 @@ function Sidebar(): React.JSX.Element {
       <div className="mt-auto flex items-center gap-2 border-t border-[var(--border)] p-2.5">
         <button
           type="button"
-          title={`Theme: ${THEME_LABEL[theme]} (click to change)`}
-          onClick={() => setTheme(THEME_CYCLE[theme])}
-          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          title="Settings"
+          onClick={() => setIsSettingsOpen(true)}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--border)] px-2 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
-          {resolvedTheme === 'dark' ? (
-            <MoonIcon className="h-3.5 w-3.5" />
-          ) : (
-            <SunIcon className="h-3.5 w-3.5" />
-          )}
+          <SettingsIcon className="h-3.5 w-3.5" />
+          Settings
         </button>
         <button
           type="button"
-          title={
-            compactMode
-              ? 'Compact mode: on (click to turn off)'
-              : 'Compact mode: off (click to turn on)'
-          }
-          onClick={() => setCompactMode(!compactMode)}
-          className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-md border transition-colors hover:bg-[var(--bg-hover)] ${
-            compactMode
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          }`}
-        >
-          <CompactIcon className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
+          title="New note"
           onClick={() => void createNote()}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--border)] px-2 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
@@ -321,6 +290,8 @@ function Sidebar(): React.JSX.Element {
           onClose={() => setEditingLabel(null)}
         />
       )}
+
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
     </aside>
   );
 }
