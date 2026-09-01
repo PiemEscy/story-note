@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import type Database from 'better-sqlite3-multiple-ciphers';
 import { searchNotes } from '../db/notes';
+import type { LockSession } from '../db/lockSession';
 import { IPC_CHANNELS } from './channels';
 import { toIpcResult } from './types';
 import type { IpcResult } from './types';
@@ -9,22 +10,26 @@ import type { PublicNoteRow } from './notesHandlers';
 import { requireString } from './validation';
 
 // FR-5.3: a locked note is still matched by title or content and still shows
-// its title in results, but its content_plain must never cross the IPC
-// boundary here — redacted server-side rather than trusted to the renderer
-// to hide, same defense-in-depth as password_hash's exclusion from
-// PublicNoteRow (toPublicNote in notesHandlers.ts).
+// its title in results, but its content/content_plain must never cross the
+// IPC boundary here until it's been unlocked this session — toPublicNote
+// applies the exact same lock-aware redaction every other note-returning
+// handler does (notesHandlers.ts), so once a note has been unlocked its real
+// content_plain shows up in search previews again too (architecture.md:
+// "excluded from search-result previews until unlocked").
 export function handleSearchQuery(
   db: Database.Database,
+  lockSession: LockSession,
   input: unknown,
 ): IpcResult<PublicNoteRow[]> {
   return toIpcResult(() =>
-    searchNotes(db, requireString(input, 'query')).map((note) => {
-      const publicNote = toPublicNote(note);
-      return note.is_locked ? { ...publicNote, content_plain: '' } : publicNote;
-    }),
+    searchNotes(db, requireString(input, 'query')).map((note) =>
+      toPublicNote(note, lockSession.isUnlocked(note.id)),
+    ),
   );
 }
 
-export function registerSearchHandlers(db: Database.Database): void {
-  ipcMain.handle(IPC_CHANNELS.search.query, (_event, input) => handleSearchQuery(db, input));
+export function registerSearchHandlers(db: Database.Database, lockSession: LockSession): void {
+  ipcMain.handle(IPC_CHANNELS.search.query, (_event, input) =>
+    handleSearchQuery(db, lockSession, input),
+  );
 }

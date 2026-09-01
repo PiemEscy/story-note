@@ -3,11 +3,13 @@ import type { LabelRow } from '../services/labelsService';
 import { resolveLabelColor } from '../store/useLabelStore';
 import { formatRelativeTime } from '../utils/formatDate';
 import { previewText } from '../utils/notePreview';
+import { LockIcon } from '../components/icons';
 
 interface NoteGridCardsProps {
   notes: PublicNoteRow[];
   activeNoteId: number | null;
   labels: LabelRow[];
+  unlockedNoteIds: Set<number>;
   onSelect: (id: number) => void;
   // 'largegrid' gives cards more room and a longer preview clamp, matching
   // storynote-ui-reference.html's .app-window[data-view="largegrid"] rule.
@@ -21,6 +23,7 @@ function NoteGridCards({
   notes,
   activeNoteId,
   labels,
+  unlockedNoteIds,
   onSelect,
   large,
 }: NoteGridCardsProps): React.JSX.Element {
@@ -28,6 +31,7 @@ function NoteGridCards({
     <>
       {notes.map((note) => {
         const label = labels.find((candidate) => candidate.id === note.label_id);
+        const isUnlocked = unlockedNoteIds.has(note.id);
 
         return (
           <button
@@ -39,15 +43,20 @@ function NoteGridCards({
               activeNoteId === note.id ? 'shadow-[0_0_0_2px_var(--accent)]' : ''
             }`}
           >
-            <span className="text-[13px] leading-[1.35] font-semibold text-[var(--text-primary)]">
-              {note.title || 'Untitled'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="min-w-0 flex-1 truncate text-[13px] leading-[1.35] font-semibold text-[var(--text-primary)]">
+                {note.title || 'Untitled'}
+              </span>
+              {note.is_locked === 1 && (
+                <LockIcon className="h-[11px] w-[11px] shrink-0 text-[var(--text-tertiary)]" />
+              )}
+            </div>
             <p
               className={`m-0 overflow-hidden text-[11.5px] leading-[1.5] text-[var(--text-tertiary)] ${
                 large ? 'line-clamp-5 text-[12.5px]' : 'line-clamp-3'
               }`}
             >
-              {previewText(note)}
+              {previewText(note, isUnlocked)}
             </p>
             <div className="mt-auto flex items-center gap-1.5 pt-1">
               {note.label_id !== null && (

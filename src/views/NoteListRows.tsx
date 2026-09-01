@@ -3,11 +3,13 @@ import type { LabelRow } from '../services/labelsService';
 import { resolveLabelColor } from '../store/useLabelStore';
 import { formatRelativeTime } from '../utils/formatDate';
 import { previewText } from '../utils/notePreview';
+import { LockIcon } from '../components/icons';
 
 interface NoteListRowsProps {
   notes: PublicNoteRow[];
   activeNoteId: number | null;
   labels: LabelRow[];
+  unlockedNoteIds: Set<number>;
   onSelect: (id: number) => void;
 }
 
@@ -18,12 +20,14 @@ function NoteListRows({
   notes,
   activeNoteId,
   labels,
+  unlockedNoteIds,
   onSelect,
 }: NoteListRowsProps): React.JSX.Element {
   return (
     <>
       {notes.map((note) => {
         const label = labels.find((candidate) => candidate.id === note.label_id);
+        const isUnlocked = unlockedNoteIds.has(note.id);
 
         return (
           <button
@@ -43,11 +47,14 @@ function NoteListRows({
               />
             )}
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-semibold text-[var(--text-primary)]">
-                {note.title || 'Untitled'}
+              <div className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+                {note.is_locked === 1 && (
+                  <LockIcon className="h-[11px] w-[11px] shrink-0 text-[var(--text-tertiary)]" />
+                )}
+                <span className="truncate">{note.title || 'Untitled'}</span>
               </div>
               <div className="mt-0.5 truncate text-xs text-[var(--text-tertiary)]">
-                {previewText(note)}
+                {previewText(note, isUnlocked)}
               </div>
               <div className="mt-1 font-mono text-[10.5px] text-[var(--text-tertiary)]">
                 Modified {formatRelativeTime(note.updated_at)}

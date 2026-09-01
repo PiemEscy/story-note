@@ -35,6 +35,13 @@ interface NoteState {
   // selected, with no re-fetch needed.
   searchQuery: string;
   searchResults: PublicNoteRow[];
+  // Notes unlocked (password verified) for the current app session — mirrors
+  // the main process's own LockSession (electron/db/lockSession.ts), which
+  // is the one that actually gates content server-side; this copy exists so
+  // the UI can decide what to render (locked panel vs. real editor) without
+  // a round trip. Never persisted, never cleared on navigation — only reset
+  // by restarting the app, matching "reveal content for that session."
+  unlockedNoteIds: Set<number>;
   // Internal — not meant to be read by components. Bumped on every
   // loadNotes() call so an in-flight request can tell, once it resolves,
   // whether a newer call has since superseded it (see loadNotes below).
@@ -63,6 +70,9 @@ interface NoteState {
   setArchived: (id: number, isArchived: boolean) => Promise<void>;
   exportNote: (id: number) => Promise<{ cancelled: boolean }>;
   assignLabel: (id: number, labelId: number | null) => Promise<boolean>;
+  lockNote: (id: number, password: string) => Promise<boolean>;
+  unlockNote: (id: number, password: string) => Promise<boolean>;
+  removeNoteLock: (id: number, password: string) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -108,6 +118,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   error: null,
   searchQuery: '',
   searchResults: [],
+  unlockedNoteIds: new Set(),
   _loadRequestId: 0,
   _searchRequestId: 0,
 
@@ -262,6 +273,51 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       return true;
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to assign label') });
+      return false;
+    }
+  },
+
+  lockNote: async (id, password) => {
+    try {
+      const updated = await notesService.lock(id, password);
+      set((state) => ({
+        notes: state.notes.map((note) => (note.id === id ? updated : note)),
+        unlockedNoteIds: new Set(state.unlockedNoteIds).add(id),
+      }));
+      return true;
+    } catch (error) {
+      set({ error: messageFrom(error, 'Failed to lock note') });
+      return false;
+    }
+  },
+
+  unlockNote: async (id, password) => {
+    try {
+      const updated = await notesService.unlock(id, password);
+      set((state) => ({
+        notes: state.notes.map((note) => (note.id === id ? updated : note)),
+        unlockedNoteIds: new Set(state.unlockedNoteIds).add(id),
+      }));
+      return true;
+    } catch (error) {
+      // "Incorrect password" lands here — surfaced via the shared `error`
+      // state, same as every other failing action; LockedNotePanel also
+      // renders it inline next to the password field (see that component).
+      set({ error: messageFrom(error, 'Failed to unlock note') });
+      return false;
+    }
+  },
+
+  removeNoteLock: async (id, password) => {
+    try {
+      const updated = await notesService.removeLock(id, password);
+      set((state) => ({
+        notes: state.notes.map((note) => (note.id === id ? updated : note)),
+        unlockedNoteIds: new Set(state.unlockedNoteIds).add(id),
+      }));
+      return true;
+    } catch (error) {
+      set({ error: messageFrom(error, 'Failed to remove lock') });
       return false;
     }
   },

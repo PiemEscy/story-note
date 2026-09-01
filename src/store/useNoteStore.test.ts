@@ -33,6 +33,9 @@ interface MockNotesApi {
   restore: ReturnType<typeof vi.fn>;
   purge: ReturnType<typeof vi.fn>;
   export: ReturnType<typeof vi.fn>;
+  lock: ReturnType<typeof vi.fn>;
+  unlock: ReturnType<typeof vi.fn>;
+  removeLock: ReturnType<typeof vi.fn>;
 }
 
 // Installs a mocked window.storyNoteAPI.notes (+ .labels.assign and
@@ -62,6 +65,9 @@ function installMockApi(
     restore: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     purge: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     export: vi.fn(),
+    lock: vi.fn(),
+    unlock: vi.fn(),
+    removeLock: vi.fn(),
     ...overrides,
   };
   const labelsApi = {
@@ -88,6 +94,7 @@ beforeEach(() => {
     error: null,
     searchQuery: '',
     searchResults: [],
+    unlockedNoteIds: new Set(),
     _loadRequestId: 0,
     _searchRequestId: 0,
   });
@@ -469,5 +476,87 @@ describe('assignLabel', () => {
     expect(result).toBe(false);
     expect(useNoteStore.getState().error).toBe('db is locked');
     expect(useNoteStore.getState().notes).toEqual([note(1)]);
+  });
+});
+
+describe('lockNote', () => {
+  it('replaces the note with the (revealed) locked row and marks it unlocked for this session', async () => {
+    const locked = note(1, { is_locked: 1, content_plain: 'secret' });
+    installMockApi({ lock: vi.fn().mockResolvedValue({ ok: true, data: locked }) });
+    useNoteStore.setState({ notes: [note(1)] });
+
+    const result = await useNoteStore.getState().lockNote(1, 'hunter2');
+
+    expect(result).toBe(true);
+    expect(useNoteStore.getState().notes).toEqual([locked]);
+    expect(useNoteStore.getState().unlockedNoteIds.has(1)).toBe(true);
+  });
+
+  it('returns false and sets error state on failure, without touching notes', async () => {
+    installMockApi({ lock: vi.fn().mockResolvedValue({ ok: false, message: 'db is locked' }) });
+    useNoteStore.setState({ notes: [note(1)] });
+
+    const result = await useNoteStore.getState().lockNote(1, 'hunter2');
+
+    expect(result).toBe(false);
+    expect(useNoteStore.getState().error).toBe('db is locked');
+    expect(useNoteStore.getState().notes).toEqual([note(1)]);
+    expect(useNoteStore.getState().unlockedNoteIds.has(1)).toBe(false);
+  });
+});
+
+describe('unlockNote', () => {
+  it('replaces the note with the revealed row and marks it unlocked for this session', async () => {
+    const revealed = note(1, { is_locked: 1, content_plain: 'the real secret' });
+    installMockApi({ unlock: vi.fn().mockResolvedValue({ ok: true, data: revealed }) });
+    useNoteStore.setState({ notes: [note(1, { is_locked: 1 })] });
+
+    const result = await useNoteStore.getState().unlockNote(1, 'hunter2');
+
+    expect(result).toBe(true);
+    expect(useNoteStore.getState().notes).toEqual([revealed]);
+    expect(useNoteStore.getState().unlockedNoteIds.has(1)).toBe(true);
+  });
+
+  it('an incorrect password returns false, sets error, and leaves the note redacted', async () => {
+    installMockApi({
+      unlock: vi.fn().mockResolvedValue({ ok: false, message: 'Incorrect password' }),
+    });
+    const stillLocked = note(1, { is_locked: 1 });
+    useNoteStore.setState({ notes: [stillLocked] });
+
+    const result = await useNoteStore.getState().unlockNote(1, 'wrong-password');
+
+    expect(result).toBe(false);
+    expect(useNoteStore.getState().error).toBe('Incorrect password');
+    expect(useNoteStore.getState().notes).toEqual([stillLocked]);
+    expect(useNoteStore.getState().unlockedNoteIds.has(1)).toBe(false);
+  });
+});
+
+describe('removeNoteLock', () => {
+  it('replaces the note with the now-unlocked row on success', async () => {
+    const unlocked = note(1, { is_locked: 0 });
+    installMockApi({ removeLock: vi.fn().mockResolvedValue({ ok: true, data: unlocked }) });
+    useNoteStore.setState({ notes: [note(1, { is_locked: 1 })] });
+
+    const result = await useNoteStore.getState().removeNoteLock(1, 'hunter2');
+
+    expect(result).toBe(true);
+    expect(useNoteStore.getState().notes).toEqual([unlocked]);
+  });
+
+  it('returns false and sets error state on an incorrect password', async () => {
+    installMockApi({
+      removeLock: vi.fn().mockResolvedValue({ ok: false, message: 'Incorrect password' }),
+    });
+    const stillLocked = note(1, { is_locked: 1 });
+    useNoteStore.setState({ notes: [stillLocked] });
+
+    const result = await useNoteStore.getState().removeNoteLock(1, 'wrong-password');
+
+    expect(result).toBe(false);
+    expect(useNoteStore.getState().error).toBe('Incorrect password');
+    expect(useNoteStore.getState().notes).toEqual([stillLocked]);
   });
 });

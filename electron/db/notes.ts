@@ -1,3 +1,4 @@
+import { hashSync, verifySync } from '@node-rs/argon2';
 import type Database from 'better-sqlite3-multiple-ciphers';
 import type { NoteRow } from './types';
 
@@ -206,4 +207,41 @@ export function restoreNote(db: Database.Database, id: number): void {
 // age-based auto-purge policy (schema.md; not yet decided/implemented).
 export function purgeNote(db: Database.Database, id: number): void {
   db.prepare('DELETE FROM notes WHERE id = ?').run(id);
+}
+
+// Per-note password locking (FR-4). Uses @node-rs/argon2's string API
+// (hashSync/verifySync — a self-contained PHC-format hash with its own
+// random salt embedded), not the raw hashRawSync keys.ts uses for SQLCipher
+// key derivation — that's a different problem (deriving a *key*) from this
+// one (verifying a password against a stored hash). Deliberately left at the
+// library's own default cost parameters rather than keys.ts's hardened ones:
+// this gates in-app access to a note, not the database file's own crack
+// resistance if stolen (SQLCipher, via keys.ts, already owns that job —
+// architecture.md's "two independent layers"), so a fast local verify is
+// the right tradeoff, not an expensive one tuned for offline attacks.
+export function lockNote(db: Database.Database, id: number, password: string): NoteRow {
+  const hash = hashSync(password);
+  db.prepare('UPDATE notes SET is_locked = 1, password_hash = ? WHERE id = ?').run(hash, id);
+  return getNoteById(db, id)!;
+}
+
+// Returns false (never throws) for a wrong password, a note that isn't
+// locked, or one with no stored hash — callers can't distinguish "wrong
+// password" from "not locked" from this alone, which is fine: every caller
+// already knows independently whether the note is locked before calling
+// this (the IPC handlers check `note.is_locked` themselves).
+export function verifyNotePassword(db: Database.Database, id: number, password: string): boolean {
+  const note = getNoteById(db, id);
+  if (!note || !note.is_locked || !note.password_hash) {
+    return false;
+  }
+  return verifySync(note.password_hash, password);
+}
+
+// Permanently removes a note's password (is_locked/password_hash), distinct
+// from the temporary "reveal for this session" flow (see electron/db/
+// lockSession.ts) — this is the "Remove lock" checklist item, not "Unlock".
+export function removeNoteLock(db: Database.Database, id: number): NoteRow {
+  db.prepare('UPDATE notes SET is_locked = 0, password_hash = NULL WHERE id = ?').run(id);
+  return getNoteById(db, id)!;
 }

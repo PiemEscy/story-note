@@ -6,13 +6,16 @@ import {
   listArchivedNotes,
   listNotes,
   listTrashedNotes,
+  lockNote,
   purgeNote,
+  removeNoteLock,
   restoreNote,
   searchNotes,
   setArchived,
   setPinned,
   softDeleteNote,
   updateNote,
+  verifyNotePassword,
 } from './notes';
 import { createTestDatabase } from './testHelpers';
 import type Database from 'better-sqlite3-multiple-ciphers';
@@ -401,6 +404,81 @@ describe('getNoteCounts', () => {
       db.prepare('INSERT INTO labels (id, name) VALUES (1, ?)').run('Unused');
 
       expect(getNoteCounts(db).byLabel).toEqual({});
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('lockNote / verifyNotePassword / removeNoteLock', () => {
+  it('lockNote sets is_locked and a real, non-plaintext argon2 hash', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const note = createNote(db, { title: 'Secret' });
+
+      const locked = lockNote(db, note.id, 'hunter2');
+
+      expect(locked.is_locked).toBe(1);
+      expect(locked.password_hash).not.toBeNull();
+      expect(locked.password_hash).not.toBe('hunter2');
+      expect(locked.password_hash).not.toContain('hunter2');
+      expect(locked.password_hash).toMatch(/^\$argon2/);
+    } finally {
+      close();
+    }
+  });
+
+  it('lockNote does not bump updated_at (organizational, not a content edit)', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const note = createNote(db, { title: 'Secret' });
+      setUpdatedAt(db, note.id, SENTINEL_TIMESTAMP);
+
+      lockNote(db, note.id, 'hunter2');
+
+      expect(getNoteById(db, note.id)!.updated_at).toBe(SENTINEL_TIMESTAMP);
+    } finally {
+      close();
+    }
+  });
+
+  it('verifyNotePassword returns true for the correct password and false for an incorrect one', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const note = createNote(db, { title: 'Secret' });
+      lockNote(db, note.id, 'hunter2');
+
+      expect(verifyNotePassword(db, note.id, 'hunter2')).toBe(true);
+      expect(verifyNotePassword(db, note.id, 'wrong-password')).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it('verifyNotePassword returns false (never throws) for a note that is not locked', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const note = createNote(db, { title: 'Not locked' });
+
+      expect(verifyNotePassword(db, note.id, 'anything')).toBe(false);
+    } finally {
+      close();
+    }
+  });
+
+  it('removeNoteLock clears both is_locked and password_hash', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const note = createNote(db, { title: 'Secret' });
+      lockNote(db, note.id, 'hunter2');
+
+      const result = removeNoteLock(db, note.id);
+
+      expect(result.is_locked).toBe(0);
+      expect(result.password_hash).toBeNull();
+      // The old password no longer verifies against anything, by construction —
+      // there's no hash left to check it against.
+      expect(verifyNotePassword(db, note.id, 'hunter2')).toBe(false);
     } finally {
       close();
     }

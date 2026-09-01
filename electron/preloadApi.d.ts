@@ -19,6 +19,9 @@ export interface StoryNoteAPI {
     restore: (id: number) => Promise<IpcResult<void>>;
     purge: (id: number) => Promise<IpcResult<void>>;
     export: (id: number) => Promise<IpcResult<{ cancelled: boolean }>>;
+    lock: (id: number, password: string) => Promise<IpcResult<PublicNoteRow>>;
+    unlock: (id: number, password: string) => Promise<IpcResult<PublicNoteRow>>;
+    removeLock: (id: number, password: string) => Promise<IpcResult<PublicNoteRow>>;
   };
   labels: {
     create: (input: CreateLabelInput) => Promise<IpcResult<LabelRow>>;

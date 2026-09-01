@@ -56,6 +56,7 @@ function NoteList(): React.JSX.Element | null {
   const labelFilter = useNoteStore((state) => state.labelFilter);
   const searchQuery = useNoteStore((state) => state.searchQuery);
   const searchResults = useNoteStore((state) => state.searchResults);
+  const unlockedNoteIds = useNoteStore((state) => state.unlockedNoteIds);
   const activeNoteId = useNoteStore((state) => state.activeNoteId);
   const isLoading = useNoteStore((state) => state.isLoading);
   const selectNote = useNoteStore((state) => state.selectNote);
@@ -247,6 +248,7 @@ function NoteList(): React.JSX.Element | null {
               notes={displayedNotes}
               activeNoteId={activeNoteId}
               labels={labels}
+              unlockedNoteIds={unlockedNoteIds}
               onSelect={handleSelect}
             />
           )}
@@ -264,6 +266,7 @@ function NoteList(): React.JSX.Element | null {
               notes={displayedNotes}
               activeNoteId={activeNoteId}
               labels={labels}
+              unlockedNoteIds={unlockedNoteIds}
               onSelect={handleSelect}
               large={effectiveView === 'largegrid'}
             />

@@ -38,4 +38,9 @@ export const notesService = {
   restore: (id: number) => window.storyNoteAPI.notes.restore(id).then(unwrap),
   purge: (id: number) => window.storyNoteAPI.notes.purge(id).then(unwrap),
   export: (id: number) => window.storyNoteAPI.notes.export(id).then(unwrap),
+  lock: (id: number, password: string) => window.storyNoteAPI.notes.lock(id, password).then(unwrap),
+  unlock: (id: number, password: string) =>
+    window.storyNoteAPI.notes.unlock(id, password).then(unwrap),
+  removeLock: (id: number, password: string) =>
+    window.storyNoteAPI.notes.removeLock(id, password).then(unwrap),
 };

@@ -8,7 +8,9 @@ import { useNoteEditor } from '../editor/useNoteEditor';
 import EditorToolbar from '../editor/EditorToolbar';
 import NoteEditor from '../editor/NoteEditor';
 import ConfirmDialog from './ConfirmDialog';
-import { MoreOptionsIcon, ArchivedIcon, ExportIcon, DeleteIcon, BackIcon } from './icons';
+import LockedNotePanel from './LockedNotePanel';
+import LockNoteModal from './LockNoteModal';
+import { MoreOptionsIcon, ArchivedIcon, ExportIcon, DeleteIcon, BackIcon, LockIcon } from './icons';
 
 const AUTOSAVE_DELAY_MS = 600;
 
@@ -28,9 +30,17 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   const setArchived = useNoteStore((state) => state.setArchived);
   const exportNote = useNoteStore((state) => state.exportNote);
   const assignLabel = useNoteStore((state) => state.assignLabel);
+  const unlockedNoteIds = useNoteStore((state) => state.unlockedNoteIds);
   const labels = useLabelStore((state) => state.labels);
   const view = useUIStore((state) => state.view);
   const closeNoteDetail = useUIStore((state) => state.closeNoteDetail);
+
+  // Locked-and-not-yet-unlocked-this-session: the topbar (label chip, more
+  // options) still renders per storynote-ui-reference.html's #lockedPanel
+  // toggle, but the formatting toolbar and body swap for LockedNotePanel —
+  // there's nothing meaningful to format/edit until unlocked, and note.content
+  // is server-redacted to '' anyway (electron/ipc/notesHandlers.ts).
+  const isLocked = note.is_locked === 1 && !unlockedNoteIds.has(note.id);
 
   // List/Details/Grid/Large Grid have no inline list-alongside-editor layout
   // (see EditorPanel's own guard below) — opening a note from one of those
@@ -44,6 +54,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [lockModalMode, setLockModalMode] = useState<'lock' | 'remove' | null>(null);
 
   const noteLabel = labels.find((label) => label.id === note.label_id) ?? null;
 
@@ -241,6 +252,17 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
                   type="button"
                   onClick={() => {
                     setIsMenuOpen(false);
+                    setLockModalMode(note.is_locked === 1 ? 'remove' : 'lock');
+                  }}
+                  className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  <LockIcon className="h-3.5 w-3.5 opacity-80" />
+                  {note.is_locked === 1 ? 'Remove lock' : 'Lock note'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
                     void exportNote(note.id);
                   }}
                   className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[12.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
@@ -266,23 +288,37 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
         </div>
       </div>
 
-      {editor && <EditorToolbar editor={editor} />}
+      {isLocked ? (
+        <LockedNotePanel noteId={note.id} noteTitle={note.title} />
+      ) : (
+        <>
+          {editor && <EditorToolbar editor={editor} />}
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[720px] px-10 py-8">
-          <input
-            value={title}
-            onChange={(event) => handleTitleChange(event.target.value)}
-            placeholder="Untitled"
-            className="mb-1.5 w-full border-0 text-[26px] font-bold tracking-tight text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-          />
-          <div className="mb-5 font-mono text-[11.5px] text-[var(--text-tertiary)]">
-            Created {formatShortDate(note.created_at)} · Modified{' '}
-            {formatRelativeTime(note.updated_at)}
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-[720px] px-10 py-8">
+              <input
+                value={title}
+                onChange={(event) => handleTitleChange(event.target.value)}
+                placeholder="Untitled"
+                className="mb-1.5 w-full border-0 text-[26px] font-bold tracking-tight text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+              />
+              <div className="mb-5 font-mono text-[11.5px] text-[var(--text-tertiary)]">
+                Created {formatShortDate(note.created_at)} · Modified{' '}
+                {formatRelativeTime(note.updated_at)}
+              </div>
+              <NoteEditor editor={editor} />
+            </div>
           </div>
-          <NoteEditor editor={editor} />
-        </div>
-      </div>
+        </>
+      )}
+
+      {lockModalMode && (
+        <LockNoteModal
+          noteId={note.id}
+          mode={lockModalMode}
+          onClose={() => setLockModalMode(null)}
+        />
+      )}
 
       {isConfirmingDelete && (
         <ConfirmDialog
@@ -305,6 +341,7 @@ function EditorPanel(): React.JSX.Element | null {
   const notes = useNoteStore((state) => state.notes);
   const activeNoteId = useNoteStore((state) => state.activeNoteId);
   const filter = useNoteStore((state) => state.filter);
+  const unlockedNoteIds = useNoteStore((state) => state.unlockedNoteIds);
   const view = useUIStore((state) => state.view);
   const isNoteDetailOpen = useUIStore((state) => state.isNoteDetailOpen);
 
@@ -355,7 +392,19 @@ function EditorPanel(): React.JSX.Element | null {
     );
   }
 
-  return <NoteEditorForm key={activeNote.id} note={activeNote} filter={filter} />;
+  // NoteEditorForm's title/content/draft refs only ever initialize once, at
+  // mount, from the `note` prop it's given — correct for switching between
+  // *different* notes (see its own doc comment), but not by itself enough
+  // for the SAME note transitioning from locked-and-redacted to unlocked:
+  // without forcing a remount here, the form would stay stuck showing the
+  // stale (empty) title/content it mounted with even after unlockNote()
+  // replaces this note with its real, unredacted content in the store.
+  // Including the unlock state in the key makes that transition remount
+  // exactly like switching to a different note.id already does.
+  const isUnlocked = unlockedNoteIds.has(activeNote.id);
+  return (
+    <NoteEditorForm key={`${activeNote.id}:${isUnlocked}`} note={activeNote} filter={filter} />
+  );
 }
 
 export default EditorPanel;
