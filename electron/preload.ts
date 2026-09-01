@@ -60,6 +60,22 @@ const storyNoteAPI = {
       };
     },
   },
+  app: {
+    isLocked: () => ipcRenderer.invoke(IPC_CHANNELS.app.isLocked),
+    unlock: (password: string) => ipcRenderer.invoke(IPC_CHANNELS.app.unlock, password),
+  },
+  keyMode: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.keyMode.get),
+    setPassword: (password: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.keyMode.setPassword, password),
+    setOs: () => ipcRenderer.invoke(IPC_CHANNELS.keyMode.setOs),
+  },
+  window: {
+    setAlwaysOnTop: (value: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.window.setAlwaysOnTop, value),
+    setLaunchOnStartup: (value: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.window.setLaunchOnStartup, value),
+  },
 };
 
 if (process.contextIsolated) {

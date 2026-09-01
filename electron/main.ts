@@ -6,8 +6,10 @@ import icon from '../resources/icon.png?asset';
 import { openDatabase } from './db/index';
 import { PasswordRequiredError, resolveEncryptionKey } from './db/keys';
 import { getBooleanSetting, setSetting } from './db/settings';
-import type { LockSession } from './db/lockSession';
+import { registerAppHandlers } from './ipc/appHandlers';
 import { registerIpcHandlers } from './ipc/registerIpcHandlers';
+import { registerKeyModeHandlers } from './ipc/keyModeHandlers';
+import { registerWindowHandlers } from './ipc/windowHandlers';
 import { getSavedWindowBounds, saveWindowBounds } from './windowBounds';
 import { createTray } from './tray';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
@@ -116,54 +118,18 @@ function createWindow(): void {
   }
 }
 
-// Opens the encrypted database and registers every IPC handler against it.
-// Returns the LockSession registerIpcHandlers created (shared with the
-// quick-lock global shortcut below) on success, or undefined (having
-// already shown the user a clear error and quit) if the database can't be
-// opened, so callers know not to proceed to createWindow().
-function initializeDatabase(): LockSession | undefined {
-  const userDataPath = app.getPath('userData');
-
-  try {
-    const key = resolveEncryptionKey(userDataPath);
-    db = openDatabase({ userDataPath, key });
-  } catch (error) {
-    if (error instanceof PasswordRequiredError) {
-      // No master-password unlock screen exists yet (Phase 11) — this can
-      // only be reached once Settings adds a way to enable password mode,
-      // which it doesn't yet. Fail loudly and clearly rather than silently
-      // proceeding with no database.
-      dialog.showErrorBox(
-        'StoryNote',
-        'This database is protected by a master password, but the unlock screen is not implemented yet.',
-      );
-    } else {
-      console.error('[main] failed to open database', error);
-      dialog.showErrorBox(
-        'StoryNote',
-        'Failed to open the local database. Check the logs for details.',
-      );
-    }
-    return undefined;
-  }
-
-  return registerIpcHandlers(db);
-}
-
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.storynote.app');
-
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window);
-  });
-
-  const lockSession = initializeDatabase();
-  if (!lockSession || !db) {
-    app.quit();
-    return;
-  }
-
-  createWindow();
+// Finishes startup once the database is open — whether that happened
+// immediately below (OS mode, the common case) or only later, once the
+// renderer's unlock screen submitted the correct master password
+// (tryUnlock). Registers every IPC handler that needs `db`, the tray,
+// login-item sync, and global shortcuts. tryUnlock guards against calling
+// this twice in one run — ipcMain.handle throws if a channel is registered
+// a second time.
+function completeStartup(database: Database.Database): void {
+  db = database;
+  const lockSession = registerIpcHandlers(db);
+  registerKeyModeHandlers(db, app.getPath('userData'));
+  registerWindowHandlers(db);
   // Custom deps rather than tray.ts's default: its own defaultDeps has no
   // way to persist a toggle (it only knows about BrowserWindow, not this
   // module's `db`) — without this, "Always on Top" would change the live
@@ -180,6 +146,94 @@ app.whenReady().then(() => {
   });
   syncLoginItemSetting(db);
   registerGlobalShortcuts(lockSession);
+
+  // Password mode (ADR-001): createWindow() below may already have run with
+  // no `db` yet available (to show the unlock screen at all — see
+  // app.whenReady()'s try/catch), so it fell back to default bounds and
+  // always-on-top=false. Now that the settings table is reachable, reconcile
+  // that already-created window with whatever was actually persisted. In the
+  // common OS-mode path this is a no-op: completeStartup() finishes before
+  // createWindow() is ever called there, so there's no window yet to
+  // correct. start_minimized is deliberately not reapplied here — the window
+  // has to be visible for the user to type their password in the first
+  // place, and no tray exists yet at that point to restore it from if it
+  // were hidden now.
+  const existingWindow = BrowserWindow.getAllWindows()[0];
+  if (existingWindow) {
+    existingWindow.setBounds(getSavedWindowBounds(db));
+    existingWindow.setAlwaysOnTop(getBooleanSetting(db, 'always_on_top'));
+  }
+}
+
+// Called once from app.whenReady() below, then again from tryUnlock() if
+// the first attempt found the database in password mode. Throws
+// PasswordRequiredError in that case — the caller treats that as "show the
+// unlock screen instead", not a real failure.
+function openWithOsKey(): Database.Database {
+  const userDataPath = app.getPath('userData');
+  const key = resolveEncryptionKey(userDataPath);
+  return openDatabase({ userDataPath, key });
+}
+
+// Wired to appHandlers.ts's storynote:app:unlock, called by the renderer's
+// unlock screen (ADR-001's password mode — ipc/keyModeHandlers.ts is the
+// other half, switching *into* this mode from an already-running app).
+// Throws 'Incorrect password' on any failure — a wrong password fails
+// inside openDatabase() itself (SQLCipher rejects a mis-keyed file) as some
+// raw SQLite error, not something worth showing verbatim to the user. The
+// real error is still logged first (rather than swallowed, code-style.md):
+// most failures here really are a wrong password, but a corrupt
+// storynote.keymeta.json or a disk-level problem would surface identically
+// to the user otherwise, with no way to tell it apart from "you forgot your
+// password" — which ADR-001 makes explicit has no recovery path.
+function tryUnlock(password: string): void {
+  if (db) return; // already unlocked — a stale/duplicate submit, not an error
+  const userDataPath = app.getPath('userData');
+  let database: Database.Database;
+  try {
+    const key = resolveEncryptionKey(userDataPath, password);
+    database = openDatabase({ userDataPath, key });
+  } catch (error) {
+    console.error('[main] failed to unlock database', error);
+    throw new Error('Incorrect password');
+  }
+  completeStartup(database);
+}
+
+app.whenReady().then(() => {
+  electronApp.setAppUserModelId('com.storynote.app');
+
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window);
+  });
+
+  // Registered unconditionally, before we know whether the database needs a
+  // password — every other IPC channel (notes, labels, settings, search,
+  // key mode) only exists once completeStartup() has run, which might not
+  // happen until the renderer submits the correct password below.
+  registerAppHandlers({
+    isLocked: () => db === undefined,
+    unlock: tryUnlock,
+  });
+
+  try {
+    completeStartup(openWithOsKey());
+  } catch (error) {
+    if (!(error instanceof PasswordRequiredError)) {
+      console.error('[main] failed to open database', error);
+      dialog.showErrorBox(
+        'StoryNote',
+        'Failed to open the local database. Check the logs for details.',
+      );
+      app.quit();
+      return;
+    }
+    // Password mode is active — createWindow() below still runs; the
+    // renderer sees storynote:app:is-locked -> true and shows the unlock
+    // screen instead of the normal app until tryUnlock() succeeds.
+  }
+
+  createWindow();
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

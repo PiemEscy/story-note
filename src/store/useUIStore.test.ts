@@ -8,10 +8,19 @@ interface MockSettingsApi {
   delete: ReturnType<typeof vi.fn>;
 }
 
-// Installs a mocked window.storyNoteAPI.settings — the store's only IPC
-// dependency (via services/settingsService.ts) — so these tests exercise
-// real store logic without a real IPC transport.
-function installMockApi(overrides: Record<string, unknown> = {}): MockSettingsApi {
+interface MockWindowApi {
+  setAlwaysOnTop: ReturnType<typeof vi.fn>;
+  setLaunchOnStartup: ReturnType<typeof vi.fn>;
+}
+
+// Installs a mocked window.storyNoteAPI.settings/.window — the store's only
+// IPC dependencies (via services/settingsService.ts and
+// services/windowService.ts) — so these tests exercise real store logic
+// without a real IPC transport.
+function installMockApi(
+  overrides: Record<string, unknown> = {},
+  windowOverrides: Record<string, unknown> = {},
+): MockSettingsApi {
   const settingsApi = {
     get: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     getAll: vi.fn().mockResolvedValue({ ok: true, data: {} }),
@@ -19,8 +28,13 @@ function installMockApi(overrides: Record<string, unknown> = {}): MockSettingsAp
     delete: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     ...overrides,
   };
-  // @ts-expect-error partial mock is sufficient — the store only touches `settings`
-  window.storyNoteAPI = { settings: settingsApi };
+  const windowApi: MockWindowApi = {
+    setAlwaysOnTop: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+    setLaunchOnStartup: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+    ...windowOverrides,
+  };
+  // @ts-expect-error partial mock is sufficient — the store only touches `settings`/`window`
+  window.storyNoteAPI = { settings: settingsApi, window: windowApi };
   return settingsApi;
 }
 
@@ -32,6 +46,9 @@ beforeEach(() => {
     isNoteDetailOpen: false,
     compactMode: false,
     sidebarWidth: 240,
+    alwaysOnTop: false,
+    launchOnStartup: false,
+    startMinimized: false,
   });
   installMockApi();
 });
@@ -317,6 +334,114 @@ describe('useUIStore', () => {
         await initPromise;
 
         expect(useUIStore.getState().sidebarWidth).toBe(350);
+      });
+    });
+  });
+
+  describe('always on top', () => {
+    it('defaults alwaysOnTop to false', () => {
+      expect(useUIStore.getState().alwaysOnTop).toBe(false);
+    });
+
+    it('sets alwaysOnTop optimistically and applies it via windowService', async () => {
+      installMockApi();
+
+      const applied = useUIStore.getState().setAlwaysOnTop(true);
+
+      expect(useUIStore.getState().alwaysOnTop).toBe(true);
+      await applied;
+      expect(window.storyNoteAPI.window.setAlwaysOnTop).toHaveBeenCalledWith(true);
+    });
+
+    it('reverts alwaysOnTop when the main process call fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      installMockApi(
+        {},
+        { setAlwaysOnTop: vi.fn().mockResolvedValue({ ok: false, message: 'failed' }) },
+      );
+
+      await useUIStore.getState().setAlwaysOnTop(true);
+
+      expect(useUIStore.getState().alwaysOnTop).toBe(false);
+    });
+
+    describe('initAlwaysOnTop', () => {
+      it('applies a persisted "true" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'true' }) });
+
+        await useUIStore.getState().initAlwaysOnTop();
+
+        expect(useUIStore.getState().alwaysOnTop).toBe(true);
+      });
+
+      it('falls back to the current default when nothing is persisted', async () => {
+        await useUIStore.getState().initAlwaysOnTop();
+
+        expect(useUIStore.getState().alwaysOnTop).toBe(false);
+      });
+    });
+  });
+
+  describe('launch on startup', () => {
+    it('defaults launchOnStartup to false', () => {
+      expect(useUIStore.getState().launchOnStartup).toBe(false);
+    });
+
+    it('sets launchOnStartup optimistically and applies it via windowService', async () => {
+      installMockApi();
+
+      const applied = useUIStore.getState().setLaunchOnStartup(true);
+
+      expect(useUIStore.getState().launchOnStartup).toBe(true);
+      await applied;
+      expect(window.storyNoteAPI.window.setLaunchOnStartup).toHaveBeenCalledWith(true);
+    });
+
+    it('reverts launchOnStartup when the main process call fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      installMockApi(
+        {},
+        { setLaunchOnStartup: vi.fn().mockResolvedValue({ ok: false, message: 'failed' }) },
+      );
+
+      await useUIStore.getState().setLaunchOnStartup(true);
+
+      expect(useUIStore.getState().launchOnStartup).toBe(false);
+    });
+
+    describe('initLaunchOnStartup', () => {
+      it('applies a persisted "true" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'true' }) });
+
+        await useUIStore.getState().initLaunchOnStartup();
+
+        expect(useUIStore.getState().launchOnStartup).toBe(true);
+      });
+    });
+  });
+
+  describe('start minimized', () => {
+    it('defaults startMinimized to false', () => {
+      expect(useUIStore.getState().startMinimized).toBe(false);
+    });
+
+    it('updates startMinimized via setStartMinimized, and persists the choice', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setStartMinimized(true);
+
+      expect(useUIStore.getState().startMinimized).toBe(true);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('start_minimized', 'true');
+    });
+
+    describe('initStartMinimized', () => {
+      it('applies a persisted "true" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'true' }) });
+
+        await useUIStore.getState().initStartMinimized();
+
+        expect(useUIStore.getState().startMinimized).toBe(true);
       });
     });
   });

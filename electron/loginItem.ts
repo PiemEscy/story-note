@@ -11,11 +11,11 @@ const defaultDeps: LoginItemDeps = {
 };
 
 // Syncs the OS-level "launch at login" registration to settings.
-// launch_on_startup (schema.md) — called once at app startup. There's no
-// toggle UI for this setting yet (Phase 11 owns the Settings panel), so
-// this only ever reflects whatever was last persisted; a login-item change
-// only matters "next time you log in" anyway, so there's no need for a
-// live-apply path before that UI exists.
+// launch_on_startup (schema.md) — called once at app startup, to apply
+// whatever was last persisted. The Settings panel's own "Launch at startup"
+// toggle (electron/ipc/windowHandlers.ts's handleSetLaunchOnStartup) applies
+// live changes directly via app.setLoginItemSettings — this function only
+// covers the startup case, not a live-apply path of its own.
 export function syncLoginItemSetting(
   db: Database.Database,
   deps: LoginItemDeps = defaultDeps,

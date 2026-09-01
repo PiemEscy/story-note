@@ -4,6 +4,7 @@ import type { LabelRow } from './db/types';
 import type { PublicNoteRow } from './ipc/notesHandlers';
 import type { IpcResult } from './ipc/types';
 import type { ShortcutAction } from './shortcuts';
+import type { KeyMode } from './db/keys';
 
 export interface StoryNoteAPI {
   notes: {
@@ -42,6 +43,19 @@ export interface StoryNoteAPI {
   };
   shortcuts: {
     onTrigger: (callback: (action: ShortcutAction) => void) => () => void;
+  };
+  app: {
+    isLocked: () => Promise<IpcResult<boolean>>;
+    unlock: (password: string) => Promise<IpcResult<void>>;
+  };
+  keyMode: {
+    get: () => Promise<IpcResult<KeyMode>>;
+    setPassword: (password: string) => Promise<IpcResult<void>>;
+    setOs: () => Promise<IpcResult<void>>;
+  };
+  window: {
+    setAlwaysOnTop: (value: boolean) => Promise<IpcResult<void>>;
+    setLaunchOnStartup: (value: boolean) => Promise<IpcResult<void>>;
   };
 }
 
