@@ -19,6 +19,7 @@ import {
   BackIcon,
   LockIcon,
   PinIcon,
+  SearchIcon,
 } from './icons';
 
 const AUTOSAVE_DELAY_MS = 600;
@@ -167,6 +168,24 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
     editor.commands.setSearchQuery(effectiveSearchQuery);
   }, [editor, effectiveSearchQuery]);
 
+  // Shared by the Ctrl+F shortcut below and the toolbar search button
+  // (JSX further down) — both open the same in-note search bar the same
+  // way, per "same action as clicking Ctrl+F".
+  const openSearch = useCallback(() => {
+    // A non-empty selection at the moment of opening pre-fills the query
+    // with it, matching the conventional browser/editor Ctrl+F behavior —
+    // a bare cursor (no selection) leaves whatever query is already there
+    // untouched instead of clearing it.
+    if (editor) {
+      const { from, to, empty } = editor.state.selection;
+      if (!empty) {
+        const selectedText = editor.state.doc.textBetween(from, to);
+        if (selectedText) setLocalSearchQuery(selectedText);
+      }
+    }
+    setIsSearchOpen(true);
+  }, [editor, setLocalSearchQuery, setIsSearchOpen]);
+
   // Disabled/unavailable on locked notes (no editor content exists to
   // search until unlocked) — guarded here rather than relying only on the
   // editor/toolbar not rendering below, so Ctrl+F itself is a no-op instead
@@ -176,23 +195,12 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
     const handleKeyDown = (event: KeyboardEvent): void => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault();
-        // A non-empty selection at the moment of the shortcut pre-fills the
-        // query with it, matching the conventional browser/editor Ctrl+F
-        // behavior — a bare cursor (no selection) leaves whatever query is
-        // already there untouched instead of clearing it.
-        if (editor) {
-          const { from, to, empty } = editor.state.selection;
-          if (!empty) {
-            const selectedText = editor.state.doc.textBetween(from, to);
-            if (selectedText) setLocalSearchQuery(selectedText);
-          }
-        }
-        setIsSearchOpen(true);
+        openSearch();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLocked, editor]);
+  }, [isLocked, openSearch]);
 
   // Esc closes the bar regardless of which element inside it currently has
   // focus — NoteSearchBar's own input has a narrower onKeyDown for the same
@@ -331,6 +339,17 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
               </span>
             </div>
           </>
+        )}
+
+        {!isLocked && (
+          <button
+            type="button"
+            title="Find in note (Ctrl+F)"
+            onClick={openSearch}
+            className="flex h-[26px] w-[26px] items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <SearchIcon className="h-[15px] w-[15px]" />
+          </button>
         )}
 
         <button

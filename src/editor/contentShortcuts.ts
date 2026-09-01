@@ -23,6 +23,7 @@ export const CONTENT_SHORTCUTS: ContentShortcutDisplay[] = [
   { action: 'Move block down', keybinding: 'Alt+↓' },
   { action: 'Duplicate block above', keybinding: 'Shift+Alt+↑' },
   { action: 'Duplicate block below', keybinding: 'Shift+Alt+↓' },
+  { action: 'Find in note', keybinding: 'Ctrl+f' },
 ];
 
 interface CommandProps {

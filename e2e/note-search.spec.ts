@@ -51,6 +51,59 @@ test('Ctrl+F opens a search bar scoped to the active note, highlighting matches 
   }
 });
 
+test('the toolbar search button opens the same search bar as Ctrl+F', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'New note' }).first().click();
+    await page.locator('.tiptap').click();
+    await page.keyboard.type('The quick brown fox jumps over the lazy dog.');
+
+    await page.getByTitle('Find in note (Ctrl+F)').click();
+
+    const searchInput = page.getByPlaceholder('Find in note…');
+    await expect(searchInput).toBeFocused();
+    await searchInput.fill('the');
+    await expect(page.locator('.search-match')).toHaveCount(2);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('the toolbar search button is hidden on a locked note', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'New note' }).first().click();
+    await page.getByPlaceholder('Untitled').fill('Secret note');
+    await expect
+      .poll(async () => {
+        const result = await page.evaluate(() => window.storyNoteAPI.notes.list());
+        return result.ok ? result.data[0]?.title : undefined;
+      })
+      .toBe('Secret note');
+
+    await page.getByTitle('More options').click();
+    await page.getByRole('button', { name: 'Lock note', exact: true }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByLabel('Password', { exact: true }).fill('correct horse battery');
+    await modal.getByLabel('Confirm password').fill('correct horse battery');
+    await modal.getByRole('button', { name: 'Lock note', exact: true }).click();
+    await expect(modal).toBeHidden();
+
+    await sendShortcut(app, 'quick-lock');
+    await expect(
+      page.getByText('This note is locked. Enter the password to view its content.'),
+    ).toBeVisible();
+
+    await expect(page.getByTitle('Find in note (Ctrl+F)')).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('Ctrl+F pre-fills the query with the current text selection', async () => {
   const { app, cleanup } = await launchIsolatedApp();
 
