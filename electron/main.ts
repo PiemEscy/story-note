@@ -57,7 +57,12 @@ function createWindow(): void {
     alwaysOnTop,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    // Set unconditionally, not just on Linux — a packaged Windows/macOS
+    // build gets its icon from the embedded build/icon.ico|icns instead, so
+    // this line is redundant there, but without it an unpackaged dev-mode
+    // run (npm run dev) shows Electron's own default icon in the title bar
+    // and taskbar instead of StoryNote's.
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
