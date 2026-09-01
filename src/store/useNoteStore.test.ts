@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useNoteStore } from './useNoteStore';
 import type { PublicNoteRow } from '../services/notesService';
+import type { StoryNoteAPI } from '../../electron/preloadApi';
 
 function note(id: number, overrides: Partial<PublicNoteRow> = {}): PublicNoteRow {
   return {
@@ -38,16 +39,18 @@ interface MockNotesApi {
   removeLock: ReturnType<typeof vi.fn>;
 }
 
-// Installs a mocked window.storyNoteAPI.notes (+ .labels.assign and
-// .search.query, used only by assignLabel/search) — the store's only
-// dependencies (via services/notesService.ts, services/labelsService.ts, and
-// services/searchService.ts) — so these tests exercise real store logic
-// (dropNote semantics, race handling, error propagation) without a real IPC
-// transport or database.
+// Installs a mocked window.storyNoteAPI.notes (+ .labels.assign,
+// .search.query, and .settings.get/set, used only by assignLabel/search/
+// setSort+initSort respectively) — the store's only dependencies (via
+// services/notesService.ts, services/labelsService.ts, services/
+// searchService.ts, and services/settingsService.ts) — so these tests
+// exercise real store logic (dropNote semantics, race handling, error
+// propagation) without a real IPC transport or database.
 function installMockApi(
   overrides: Record<string, unknown> = {},
   labelsOverrides: Record<string, unknown> = {},
   searchOverrides: Record<string, unknown> = {},
+  settingsOverrides: Record<string, unknown> = {},
 ): MockNotesApi {
   const notesApi = {
     create: vi.fn(),
@@ -78,8 +81,23 @@ function installMockApi(
     query: vi.fn().mockResolvedValue({ ok: true, data: [] }),
     ...searchOverrides,
   };
-  // @ts-expect-error partial mock is sufficient — the store only touches `notes`/`labels`/`search`
-  window.storyNoteAPI = { notes: notesApi, labels: labelsApi, search: searchApi };
+  const settingsApi = {
+    get: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+    set: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+    ...settingsOverrides,
+  };
+  // Partial mock is sufficient — the store only touches notes/labels.assign/
+  // search.query/settings.get+set. `as unknown as StoryNoteAPI` rather than
+  // `@ts-expect-error`: that directive only suppresses an error reported on
+  // the exact next line, and Prettier reformatting this object literal
+  // across multiple lines moves the real errors onto the individual
+  // property lines instead, silently leaving them unsuppressed.
+  window.storyNoteAPI = {
+    notes: notesApi,
+    labels: labelsApi,
+    search: searchApi,
+    settings: settingsApi,
+  } as unknown as StoryNoteAPI;
   return notesApi;
 }
 
@@ -90,6 +108,8 @@ beforeEach(() => {
     filter: 'active',
     labelFilter: null,
     noteCounts: null,
+    sortBy: 'updated_at',
+    sortDirection: 'desc',
     isLoading: false,
     error: null,
     searchQuery: '',
@@ -558,5 +578,120 @@ describe('removeNoteLock', () => {
     expect(result).toBe(false);
     expect(useNoteStore.getState().error).toBe('Incorrect password');
     expect(useNoteStore.getState().notes).toEqual([stillLocked]);
+  });
+});
+
+describe('togglePin', () => {
+  it('calls setPinned and reloads the list (pin changes sort order, not just the note itself)', async () => {
+    const pinned = note(1, { is_pinned: 1 });
+    const api = installMockApi({
+      setPinned: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+      list: vi.fn().mockResolvedValue({ ok: true, data: [pinned] }),
+    });
+
+    await useNoteStore.getState().togglePin(1, true);
+
+    expect(api.setPinned).toHaveBeenCalledWith(1, true);
+    expect(useNoteStore.getState().notes).toEqual([pinned]);
+  });
+
+  it('sets error state (and does not throw) when the service call fails', async () => {
+    installMockApi({
+      setPinned: vi.fn().mockResolvedValue({ ok: false, message: 'db is locked' }),
+    });
+
+    await useNoteStore.getState().togglePin(1, true);
+
+    expect(useNoteStore.getState().error).toBe('db is locked');
+  });
+});
+
+describe('setSort', () => {
+  it('updates sortBy/sortDirection, reloads notes, and persists both settings', async () => {
+    const api = installMockApi({
+      list: vi.fn().mockResolvedValue({ ok: true, data: [note(1)] }),
+    });
+
+    await useNoteStore.getState().setSort('title', 'asc');
+
+    expect(useNoteStore.getState().sortBy).toBe('title');
+    expect(useNoteStore.getState().sortDirection).toBe('asc');
+    expect(useNoteStore.getState().notes).toEqual([note(1)]);
+    expect(api.list).toHaveBeenCalledWith({ sortBy: 'title', sortDirection: 'asc' });
+    expect(window.storyNoteAPI.settings.set).toHaveBeenCalledWith('sort_by', 'title');
+    expect(window.storyNoteAPI.settings.set).toHaveBeenCalledWith('sort_direction', 'asc');
+  });
+});
+
+describe('initSort', () => {
+  it('applies a persisted sort_by/sort_direction and reloads notes', async () => {
+    const api = installMockApi(
+      { list: vi.fn().mockResolvedValue({ ok: true, data: [note(1)] }) },
+      {},
+      {},
+      {
+        get: vi.fn((key: string) =>
+          Promise.resolve({
+            ok: true,
+            data: key === 'sort_by' ? 'title' : key === 'sort_direction' ? 'asc' : undefined,
+          }),
+        ),
+      },
+    );
+
+    await useNoteStore.getState().initSort();
+
+    expect(useNoteStore.getState().sortBy).toBe('title');
+    expect(useNoteStore.getState().sortDirection).toBe('asc');
+    // The persisted sort differs from the default it started with, so it
+    // re-triggers its own loadNotes() to actually reflect the new order.
+    expect(api.list).toHaveBeenCalledWith({ sortBy: 'title', sortDirection: 'asc' });
+    expect(useNoteStore.getState().notes).toEqual([note(1)]);
+  });
+
+  it('leaves the default sort untouched when nothing is persisted yet', async () => {
+    installMockApi();
+
+    await useNoteStore.getState().initSort();
+
+    expect(useNoteStore.getState().sortBy).toBe('updated_at');
+    expect(useNoteStore.getState().sortDirection).toBe('desc');
+  });
+
+  it('ignores an invalid persisted value rather than applying garbage', async () => {
+    installMockApi(
+      {},
+      {},
+      {},
+      {
+        get: vi.fn((key: string) =>
+          Promise.resolve({ ok: true, data: key === 'sort_by' ? 'not-a-real-field' : undefined }),
+        ),
+      },
+    );
+
+    await useNoteStore.getState().initSort();
+
+    expect(useNoteStore.getState().sortBy).toBe('updated_at');
+  });
+
+  it('does not clobber a sort the user already changed while this was still loading', async () => {
+    // Both settings.get() calls inside initSort's Promise.all (sort_by and
+    // sort_direction) resolve off this single shared pending promise, so one
+    // resolveGet() call unblocks both legs at once.
+    let resolveGet!: (value: { ok: true; data: string }) => void;
+    const pending = new Promise<{ ok: true; data: string }>((resolve) => {
+      resolveGet = resolve;
+    });
+    installMockApi({}, {}, {}, { get: vi.fn(() => pending) });
+
+    const initPromise = useNoteStore.getState().initSort();
+    // The user picks a different sort while initSort's settings.get() calls
+    // are still in flight.
+    useNoteStore.setState({ sortBy: 'label', sortDirection: 'asc' });
+    resolveGet({ ok: true, data: 'title' });
+    await initPromise;
+
+    expect(useNoteStore.getState().sortBy).toBe('label');
   });
 });

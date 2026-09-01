@@ -9,6 +9,7 @@ import { useUIStore } from './store/useUIStore';
 function App(): React.JSX.Element {
   const loadNotes = useNoteStore((state) => state.loadNotes);
   const loadNoteCounts = useNoteStore((state) => state.loadNoteCounts);
+  const initSort = useNoteStore((state) => state.initSort);
   const error = useNoteStore((state) => state.error);
   const clearError = useNoteStore((state) => state.clearError);
   const loadLabels = useLabelStore((state) => state.loadLabels);
@@ -18,10 +19,14 @@ function App(): React.JSX.Element {
   useEffect(() => {
     void loadNotes();
     void loadNoteCounts();
+    // Runs after the initial loadNotes() above — if the persisted sort
+    // differs from the default it started with, initSort() re-triggers its
+    // own loadNotes() once it resolves (see useNoteStore.ts).
+    void initSort();
     void loadLabels();
     void initTheme();
     void initView();
-  }, [loadNotes, loadNoteCounts, loadLabels, initTheme, initView]);
+  }, [loadNotes, loadNoteCounts, initSort, loadLabels, initTheme, initView]);
 
   return (
     <div className="relative flex h-full overflow-hidden border-t border-[var(--border)]">

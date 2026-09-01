@@ -10,7 +10,15 @@ import NoteEditor from '../editor/NoteEditor';
 import ConfirmDialog from './ConfirmDialog';
 import LockedNotePanel from './LockedNotePanel';
 import LockNoteModal from './LockNoteModal';
-import { MoreOptionsIcon, ArchivedIcon, ExportIcon, DeleteIcon, BackIcon, LockIcon } from './icons';
+import {
+  MoreOptionsIcon,
+  ArchivedIcon,
+  ExportIcon,
+  DeleteIcon,
+  BackIcon,
+  LockIcon,
+  PinIcon,
+} from './icons';
 
 const AUTOSAVE_DELAY_MS = 600;
 
@@ -28,6 +36,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   const updateNote = useNoteStore((state) => state.updateNote);
   const deleteNote = useNoteStore((state) => state.deleteNote);
   const setArchived = useNoteStore((state) => state.setArchived);
+  const togglePin = useNoteStore((state) => state.togglePin);
   const exportNote = useNoteStore((state) => state.exportNote);
   const assignLabel = useNoteStore((state) => state.assignLabel);
   const unlockedNoteIds = useNoteStore((state) => state.unlockedNoteIds);
@@ -219,6 +228,19 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
         </div>
 
         <span className="flex-1" />
+
+        <button
+          type="button"
+          title={note.is_pinned === 1 ? 'Unpin note' : 'Pin note'}
+          onClick={() => void togglePin(note.id, note.is_pinned !== 1)}
+          className={`flex h-[26px] w-[26px] items-center justify-center rounded transition-colors hover:bg-[var(--bg-hover)] ${
+            note.is_pinned === 1
+              ? 'text-[var(--accent)]'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          }`}
+        >
+          <PinIcon className="h-[15px] w-[15px]" />
+        </button>
 
         <div className="relative">
           <button

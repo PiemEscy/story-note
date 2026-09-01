@@ -3,7 +3,7 @@ import type { LabelRow } from '../services/labelsService';
 import { resolveLabelColor } from '../store/useLabelStore';
 import { formatRelativeTime } from '../utils/formatDate';
 import { previewText } from '../utils/notePreview';
-import { LockIcon } from '../components/icons';
+import { LockIcon, PinIcon } from '../components/icons';
 
 interface NoteGridCardsProps {
   notes: PublicNoteRow[];
@@ -47,6 +47,9 @@ function NoteGridCards({
               <span className="min-w-0 flex-1 truncate text-[13px] leading-[1.35] font-semibold text-[var(--text-primary)]">
                 {note.title || 'Untitled'}
               </span>
+              {note.is_pinned === 1 && (
+                <PinIcon className="h-[11px] w-[11px] shrink-0 text-[var(--accent)]" />
+              )}
               {note.is_locked === 1 && (
                 <LockIcon className="h-[11px] w-[11px] shrink-0 text-[var(--text-tertiary)]" />
               )}

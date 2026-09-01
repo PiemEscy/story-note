@@ -3,7 +3,7 @@ import type { LabelRow } from '../services/labelsService';
 import { resolveLabelColor } from '../store/useLabelStore';
 import { formatRelativeTime } from '../utils/formatDate';
 import { previewText } from '../utils/notePreview';
-import { LockIcon } from '../components/icons';
+import { LockIcon, PinIcon } from '../components/icons';
 
 interface NoteListRowsProps {
   notes: PublicNoteRow[];
@@ -48,6 +48,9 @@ function NoteListRows({
             )}
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+                {note.is_pinned === 1 && (
+                  <PinIcon className="h-[11px] w-[11px] shrink-0 text-[var(--accent)]" />
+                )}
                 {note.is_locked === 1 && (
                   <LockIcon className="h-[11px] w-[11px] shrink-0 text-[var(--text-tertiary)]" />
                 )}

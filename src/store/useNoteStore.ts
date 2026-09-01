@@ -3,7 +3,28 @@ import { notesService } from '../services/notesService';
 import type { NoteCounts, PublicNoteRow } from '../services/notesService';
 import { labelsService } from '../services/labelsService';
 import { searchService } from '../services/searchService';
+import { settingsService } from '../services/settingsService';
 import type { NoteSortField, SortDirection } from '../../electron/db/notes';
+
+// Renderer-side copies of electron/db/notes.ts's NOTE_SORT_FIELDS/
+// SORT_DIRECTIONS runtime arrays — deliberately not imported as *values*
+// from that module: it does `import { hashSync } from '@node-rs/argon2'` at
+// the top level (a native Node binding), and any value-level import from
+// that file pulls the whole module — argon2 included — into the Vite
+// renderer bundle, which then fails to build. `import type` above is erased
+// at compile time and stays safe; these two small literal-string lists are
+// cheap enough to just mirror rather than needing a shared non-electron
+// module to break the two apart.
+const NOTE_SORT_FIELDS: NoteSortField[] = ['created_at', 'updated_at', 'title', 'label'];
+const SORT_DIRECTIONS: SortDirection[] = ['asc', 'desc'];
+
+function isNoteSortField(value: string | undefined): value is NoteSortField {
+  return (NOTE_SORT_FIELDS as readonly string[]).includes(value ?? '');
+}
+
+function isSortDirection(value: string | undefined): value is SortDirection {
+  return (SORT_DIRECTIONS as readonly string[]).includes(value ?? '');
+}
 
 export type NoteFilter = 'active' | 'archived' | 'trash';
 
@@ -68,8 +89,14 @@ interface NoteState {
   restoreNote: (id: number) => Promise<void>;
   purgeNote: (id: number) => Promise<void>;
   setArchived: (id: number, isArchived: boolean) => Promise<void>;
+  togglePin: (id: number, isPinned: boolean) => Promise<void>;
   exportNote: (id: number) => Promise<{ cancelled: boolean }>;
   assignLabel: (id: number, labelId: number | null) => Promise<boolean>;
+  // Persists to settings.sort_by/settings.sort_direction (schema.md) and
+  // reloads the active list in the new order — see initSort below for the
+  // read side of that persistence.
+  setSort: (sortBy: NoteSortField, sortDirection: SortDirection) => Promise<void>;
+  initSort: () => Promise<void>;
   lockNote: (id: number, password: string) => Promise<boolean>;
   unlockNote: (id: number, password: string) => Promise<boolean>;
   removeNoteLock: (id: number, password: string) => Promise<boolean>;
@@ -254,6 +281,21 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 
+  // Unlike archive/delete, pinning doesn't remove the note from whatever
+  // list is currently showing it — it just changes where that note sorts
+  // (listNotes() always fixes pinned notes above unpinned, regardless of
+  // sortBy — schema.md/FR-6.1). A full loadNotes() picks up that reordering
+  // directly from the server's own ORDER BY rather than re-deriving it
+  // client-side.
+  togglePin: async (id, isPinned) => {
+    try {
+      await notesService.setPinned(id, isPinned);
+      await get().loadNotes();
+    } catch (error) {
+      set({ error: messageFrom(error, 'Failed to update pin') });
+    }
+  },
+
   exportNote: async (id) => {
     try {
       return await notesService.export(id);
@@ -275,6 +317,40 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       set({ error: messageFrom(error, 'Failed to assign label') });
       return false;
     }
+  },
+
+  setSort: async (sortBy, sortDirection) => {
+    set({ sortBy, sortDirection });
+    await get().loadNotes();
+    settingsService.set('sort_by', sortBy).catch((error: unknown) => {
+      console.error('[useNoteStore] failed to persist sort_by setting', error);
+    });
+    settingsService.set('sort_direction', sortDirection).catch((error: unknown) => {
+      console.error('[useNoteStore] failed to persist sort_direction setting', error);
+    });
+  },
+
+  // Mirrors useUIStore's initTheme/initView — same guard against a
+  // later-resolving load clobbering a sort the user already picked (e.g. via
+  // the sort <select>) while this was still in flight.
+  initSort: async () => {
+    const before = { sortBy: get().sortBy, sortDirection: get().sortDirection };
+    let sortBy = before.sortBy;
+    let sortDirection = before.sortDirection;
+    try {
+      const [storedSortBy, storedSortDirection] = await Promise.all([
+        settingsService.get('sort_by'),
+        settingsService.get('sort_direction'),
+      ]);
+      if (isNoteSortField(storedSortBy)) sortBy = storedSortBy;
+      if (isSortDirection(storedSortDirection)) sortDirection = storedSortDirection;
+    } catch (error) {
+      console.error('[useNoteStore] failed to load persisted sort setting', error);
+    }
+    if (get().sortBy !== before.sortBy || get().sortDirection !== before.sortDirection) return;
+    if (sortBy === before.sortBy && sortDirection === before.sortDirection) return;
+    set({ sortBy, sortDirection });
+    await get().loadNotes();
   },
 
   lockNote: async (id, password) => {

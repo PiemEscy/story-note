@@ -3,6 +3,7 @@ import { useNoteStore } from '../store/useNoteStore';
 import { useLabelStore } from '../store/useLabelStore';
 import { useUIStore } from '../store/useUIStore';
 import type { ViewMode } from '../store/useUIStore';
+import type { NoteSortField, SortDirection } from '../../electron/db/notes';
 import { formatRelativeTime } from '../utils/formatDate';
 import ConfirmDialog from './ConfirmDialog';
 import {
@@ -50,6 +51,18 @@ const VIEW_ICON: Record<ViewMode, typeof SidebarViewIcon> = {
   largegrid: LargeGridViewIcon,
 };
 
+// storynote-ui-reference.html's .sort-select — option order/labels matched
+// exactly. No direction control shown there (or anywhere in the reference),
+// so each field gets a sensible default direction instead of exposing its
+// own asc/desc toggle: newest-first for dates, A-Z for text — matching what
+// most note apps do without needing a second control.
+const SORT_OPTIONS: { field: NoteSortField; label: string; direction: SortDirection }[] = [
+  { field: 'updated_at', label: 'Date modified', direction: 'desc' },
+  { field: 'created_at', label: 'Date created', direction: 'desc' },
+  { field: 'title', label: 'Title', direction: 'asc' },
+  { field: 'label', label: 'Label', direction: 'asc' },
+];
+
 function NoteList(): React.JSX.Element | null {
   const notes = useNoteStore((state) => state.notes);
   const filter = useNoteStore((state) => state.filter);
@@ -57,6 +70,8 @@ function NoteList(): React.JSX.Element | null {
   const searchQuery = useNoteStore((state) => state.searchQuery);
   const searchResults = useNoteStore((state) => state.searchResults);
   const unlockedNoteIds = useNoteStore((state) => state.unlockedNoteIds);
+  const sortBy = useNoteStore((state) => state.sortBy);
+  const setSort = useNoteStore((state) => state.setSort);
   const activeNoteId = useNoteStore((state) => state.activeNoteId);
   const isLoading = useNoteStore((state) => state.isLoading);
   const selectNote = useNoteStore((state) => state.selectNote);
@@ -149,6 +164,25 @@ function NoteList(): React.JSX.Element | null {
             : (filterLabelName ?? FILTER_TITLES[filter])}
         </h2>
         <span className="flex-1" />
+        {filter === 'active' && !isSearching && (
+          <select
+            title="Sort by"
+            value={sortBy}
+            onChange={(event) => {
+              const option = SORT_OPTIONS.find(
+                (candidate) => candidate.field === event.target.value,
+              );
+              if (option) void setSort(option.field, option.direction);
+            }}
+            className="rounded border border-[var(--border)] bg-[var(--bg-hover)] px-1.5 py-1 text-[11.5px] text-[var(--text-secondary)] outline-none"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.field} value={option.field}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           title={

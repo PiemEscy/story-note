@@ -240,6 +240,17 @@ export function LockIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
+// storynote-ui-reference.html's .pin-icon / editor topbar "Pin note" button
+// — a solid (fill, not stroke) thumbtack shape, unlike this file's other
+// icons.
+export function PinIcon({ className }: IconProps): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 2 9.5 8.5 3 9l5 4.5L6.5 20 12 16.5 17.5 20 16 13.5l5-4.5-6.5-.5z" />
+    </svg>
+  );
+}
+
 export function CheckIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg

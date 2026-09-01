@@ -272,6 +272,30 @@ describe('listNotes sorting', () => {
       close();
     }
   });
+
+  it('sorts by created_at', () => {
+    const { db, close } = createTestDatabase();
+    try {
+      const older = createNote(db, { title: 'older' });
+      const newer = createNote(db, { title: 'newer' });
+      db.prepare("UPDATE notes SET created_at = '2020-01-01 00:00:00' WHERE id = ?").run(older.id);
+      db.prepare("UPDATE notes SET created_at = '2024-01-01 00:00:00' WHERE id = ?").run(newer.id);
+      // updated_at intentionally left untouched (identical for both), so
+      // this can only pass if created_at — not the default column — actually
+      // drove the ordering.
+      const ascending = listNotes(db, { sortBy: 'created_at', sortDirection: 'asc' }).map(
+        (n) => n.id,
+      );
+      const descending = listNotes(db, { sortBy: 'created_at', sortDirection: 'desc' }).map(
+        (n) => n.id,
+      );
+
+      expect(ascending).toEqual([older.id, newer.id]);
+      expect(descending).toEqual([newer.id, older.id]);
+    } finally {
+      close();
+    }
+  });
 });
 
 describe('searchNotes', () => {
