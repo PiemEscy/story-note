@@ -8,6 +8,7 @@ import { formatRelativeTime } from '../utils/formatDate';
 import ConfirmDialog from './ConfirmDialog';
 import {
   NewNoteIcon,
+  ImportIcon,
   SidebarViewIcon,
   ListViewIcon,
   TableIcon,
@@ -76,6 +77,7 @@ function NoteList(): React.JSX.Element | null {
   const isLoading = useNoteStore((state) => state.isLoading);
   const selectNote = useNoteStore((state) => state.selectNote);
   const createNote = useNoteStore((state) => state.createNote);
+  const importNotes = useNoteStore((state) => state.importNotes);
   const restoreNote = useNoteStore((state) => state.restoreNote);
   const purgeNote = useNoteStore((state) => state.purgeNote);
   const labels = useLabelStore((state) => state.labels);
@@ -211,6 +213,16 @@ function NoteList(): React.JSX.Element | null {
             className="flex h-[26px] w-[26px] items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             <NewNoteIcon className="h-[15px] w-[15px]" />
+          </button>
+        )}
+        {filter === 'active' && (
+          <button
+            type="button"
+            title="Import .txt file"
+            onClick={() => void importNotes()}
+            className="flex h-[26px] w-[26px] items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <ImportIcon className="h-[15px] w-[15px]" />
           </button>
         )}
       </div>

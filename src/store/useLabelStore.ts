@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { labelsService } from '../services/labelsService';
 import type { LabelRow } from '../services/labelsService';
+import { useUIStore } from './useUIStore';
 
 interface LabelState {
   labels: LabelRow[];
@@ -63,6 +64,12 @@ export const useLabelStore = create<LabelState>((set, get) => ({
     try {
       await labelsService.delete(id);
       set({ labels: get().labels.filter((label) => label.id !== id) });
+      // A deleted label can't stay anyone's default — matches notes.label_id's
+      // own ON DELETE SET NULL behavior (schema.md), just for the settings-
+      // stored default rather than a DB foreign key.
+      if (useUIStore.getState().defaultLabelId === id) {
+        useUIStore.getState().setDefaultLabelId(null);
+      }
       return true;
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to delete label') });

@@ -2,13 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { createTestDatabase } from '../db/testHelpers';
 import { createLockSession } from '../db/lockSession';
 import { verifyNotePassword } from '../db/notes';
-import type { ExportDeps } from './notesHandlers';
+import { createLabel } from '../db/labels';
+import type { ExportDeps, ImportDeps } from './notesHandlers';
 import {
   handleCreate,
   handleDelete,
   handleExport,
   handleGet,
   handleGetCounts,
+  handleImport,
   handleList,
   handleListArchived,
   handleListTrashed,
@@ -26,6 +28,15 @@ function fakeExportDeps(overrides: Partial<ExportDeps> = {}): ExportDeps {
   return {
     showSaveDialog: vi.fn().mockResolvedValue({ canceled: false, filePath: 'C:\\out.txt' }),
     writeFile: vi.fn().mockResolvedValue(undefined),
+    getWindow: vi.fn().mockReturnValue(null),
+    ...overrides,
+  };
+}
+
+function fakeImportDeps(overrides: Partial<ImportDeps> = {}): ImportDeps {
+  return {
+    showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: [] }),
+    readFile: vi.fn().mockResolvedValue(''),
     getWindow: vi.fn().mockReturnValue(null),
     ...overrides,
   };
@@ -459,6 +470,236 @@ describe('handleExport', () => {
     try {
       const result = await handleExport(db, lockSession, 999999, fakeExportDeps());
       expect(result.ok).toBe(false);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('handleImport', () => {
+  it('opens a .txt-filtered, multi-select dialog', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
+      });
+      await handleImport(db, lockSession, null, deps);
+
+      expect(deps.showOpenDialog).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({
+          filters: [{ name: 'Text File', extensions: ['txt'] }],
+          properties: ['openFile', 'multiSelections'],
+        }),
+      );
+    } finally {
+      close();
+    }
+  });
+
+  it('creates a note per selected file, titled from the filename with .txt stripped', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi
+          .fn()
+          .mockResolvedValue({ canceled: false, filePaths: ['C:\\notes\\shopping-list.txt'] }),
+        readFile: vi.fn().mockResolvedValue('milk\neggs'),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.cancelled).toBe(false);
+      expect(result.data.failed).toEqual([]);
+      expect(result.data.imported).toHaveLength(1);
+      expect(result.data.imported[0].title).toBe('shopping-list');
+      expect(result.data.imported[0].content_plain).toBe('milk\neggs');
+
+      const doc = JSON.parse(result.data.imported[0].content);
+      expect(doc).toEqual({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'milk' }] },
+          { type: 'paragraph', content: [{ type: 'text', text: 'eggs' }] },
+        ],
+      });
+    } finally {
+      close();
+    }
+  });
+
+  it('applies the given default label to every imported note', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const label = createLabel(db, { name: 'Journal' });
+      const deps = fakeImportDeps({
+        showOpenDialog: vi.fn().mockResolvedValue({
+          canceled: false,
+          filePaths: ['C:\\notes\\a.txt', 'C:\\notes\\b.txt'],
+        }),
+        readFile: vi.fn().mockResolvedValue('text'),
+      });
+      const result = await handleImport(db, lockSession, label.id, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported).toHaveLength(2);
+      expect(result.data.imported.every((note) => note.label_id === label.id)).toBe(true);
+    } finally {
+      close();
+    }
+  });
+
+  it('leaves imported notes unlabeled when no default label is given', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi
+          .fn()
+          .mockResolvedValue({ canceled: false, filePaths: ['C:\\notes\\a.txt'] }),
+        readFile: vi.fn().mockResolvedValue('text'),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported[0].label_id).toBeNull();
+    } finally {
+      close();
+    }
+  });
+
+  it('strips a leading UTF-8 BOM from the file content', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi
+          .fn()
+          .mockResolvedValue({ canceled: false, filePaths: ['C:\\notes\\bom.txt'] }),
+        readFile: vi.fn().mockResolvedValue('\uFEFFhello'),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported[0].content_plain).toBe('hello');
+    } finally {
+      close();
+    }
+  });
+
+  it('creates an empty-body note for an empty .txt file', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi
+          .fn()
+          .mockResolvedValue({ canceled: false, filePaths: ['C:\\notes\\empty.txt'] }),
+        readFile: vi.fn().mockResolvedValue(''),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported[0].title).toBe('empty');
+      expect(result.data.imported[0].content_plain).toBe('');
+      expect(JSON.parse(result.data.imported[0].content)).toEqual({
+        type: 'doc',
+        content: [{ type: 'paragraph' }],
+      });
+    } finally {
+      close();
+    }
+  });
+
+  it('allows two imported files to produce notes with the same title', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi.fn().mockResolvedValue({
+          canceled: false,
+          filePaths: ['C:\\a\\notes.txt', 'C:\\b\\notes.txt'],
+        }),
+        readFile: vi.fn().mockResolvedValueOnce('from a').mockResolvedValueOnce('from b'),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported).toHaveLength(2);
+      expect(result.data.imported[0].title).toBe('notes');
+      expect(result.data.imported[1].title).toBe('notes');
+      expect(result.data.imported[0].content_plain).toBe('from a');
+      expect(result.data.imported[1].content_plain).toBe('from b');
+    } finally {
+      close();
+    }
+  });
+
+  it('reports cancelled with no notes created when the dialog is dismissed', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      expect(result).toEqual({ ok: true, data: { cancelled: true, imported: [], failed: [] } });
+      expect(deps.readFile).not.toHaveBeenCalled();
+      expect(db.prepare('SELECT COUNT(*) as count FROM notes').get()).toEqual({ count: 0 });
+    } finally {
+      close();
+    }
+  });
+
+  it('collects a per-file failure without aborting the rest of the batch', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi.fn().mockResolvedValue({
+          canceled: false,
+          filePaths: ['C:\\notes\\good.txt', 'C:\\notes\\bad.txt'],
+        }),
+        readFile: vi
+          .fn()
+          .mockResolvedValueOnce('fine')
+          .mockRejectedValueOnce(new Error('EACCES: permission denied')),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported).toHaveLength(1);
+      expect(result.data.imported[0].title).toBe('good');
+      expect(result.data.failed).toEqual([
+        { fileName: 'bad.txt', message: 'EACCES: permission denied' },
+      ]);
+    } finally {
+      close();
+    }
+  });
+
+  it('returns every file as failed, with nothing imported, when all reads fail', async () => {
+    const { db, close } = createTestDatabase();
+    const lockSession = createLockSession();
+    try {
+      const deps = fakeImportDeps({
+        showOpenDialog: vi
+          .fn()
+          .mockResolvedValue({ canceled: false, filePaths: ['C:\\notes\\bad.txt'] }),
+        readFile: vi.fn().mockRejectedValue(new Error('ENOENT: no such file')),
+      });
+      const result = await handleImport(db, lockSession, null, deps);
+
+      if (!result.ok) throw new Error('handleImport failed');
+      expect(result.data.imported).toEqual([]);
+      expect(result.data.failed).toEqual([
+        { fileName: 'bad.txt', message: 'ENOENT: no such file' },
+      ]);
+      expect(db.prepare('SELECT COUNT(*) as count FROM notes').get()).toEqual({ count: 0 });
     } finally {
       close();
     }

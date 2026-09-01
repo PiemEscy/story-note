@@ -4,10 +4,10 @@ import type {
   NoteCounts,
   UpdateNoteInput,
 } from '../../electron/db/notes';
-import type { PublicNoteRow } from '../../electron/ipc/notesHandlers';
+import type { ImportResult, PublicNoteRow } from '../../electron/ipc/notesHandlers';
 import type { IpcResult } from '../../electron/ipc/types';
 
-export type { PublicNoteRow, NoteCounts };
+export type { PublicNoteRow, NoteCounts, ImportResult };
 
 // Unwraps the { ok, data } / { ok: false, message } envelope every IPC call
 // returns, throwing on failure — callers (the Zustand store) catch this and
@@ -38,6 +38,8 @@ export const notesService = {
   restore: (id: number) => window.storyNoteAPI.notes.restore(id).then(unwrap),
   purge: (id: number) => window.storyNoteAPI.notes.purge(id).then(unwrap),
   export: (id: number) => window.storyNoteAPI.notes.export(id).then(unwrap),
+  import: (defaultLabelId: number | null = null) =>
+    window.storyNoteAPI.notes.import(defaultLabelId).then(unwrap),
   lock: (id: number, password: string) => window.storyNoteAPI.notes.lock(id, password).then(unwrap),
   unlock: (id: number, password: string) =>
     window.storyNoteAPI.notes.unlock(id, password).then(unwrap),

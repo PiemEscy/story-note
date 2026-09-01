@@ -54,6 +54,8 @@ beforeEach(() => {
     noteFontSize: 16.5,
     noteContentWidth: 720,
     noteZoom: 1,
+    noteLineHeight: 1.75,
+    defaultLabelId: null,
   });
   installMockApi();
 });
@@ -662,6 +664,94 @@ describe('useUIStore', () => {
         await useUIStore.getState().initNoteZoom();
 
         expect(useUIStore.getState().noteZoom).toBe(1.2);
+      });
+    });
+  });
+
+  describe('note line height', () => {
+    it('defaults noteLineHeight to 1.75', () => {
+      expect(useUIStore.getState().noteLineHeight).toBe(1.75);
+    });
+
+    it('updates noteLineHeight via setNoteLineHeight, applies it to <html>, and persists it', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setNoteLineHeight(2);
+
+      expect(useUIStore.getState().noteLineHeight).toBe(2);
+      expect(document.documentElement.style.getPropertyValue('--note-line-height')).toBe('2');
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('note_line_height', '2');
+    });
+
+    it('clamps setNoteLineHeight to [1.2, 2.2]', () => {
+      installMockApi();
+
+      useUIStore.getState().setNoteLineHeight(0.5);
+      expect(useUIStore.getState().noteLineHeight).toBe(1.2);
+
+      useUIStore.getState().setNoteLineHeight(5);
+      expect(useUIStore.getState().noteLineHeight).toBe(2.2);
+    });
+
+    describe('initNoteLineHeight', () => {
+      it('applies a valid persisted line height', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '1.5' }) });
+
+        await useUIStore.getState().initNoteLineHeight();
+
+        expect(useUIStore.getState().noteLineHeight).toBe(1.5);
+      });
+
+      it('clamps a persisted line height outside [1.2, 2.2]', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '10' }) });
+
+        await useUIStore.getState().initNoteLineHeight();
+
+        expect(useUIStore.getState().noteLineHeight).toBe(2.2);
+      });
+    });
+  });
+
+  describe('default label', () => {
+    it('defaults defaultLabelId to null', () => {
+      expect(useUIStore.getState().defaultLabelId).toBeNull();
+    });
+
+    it('updates defaultLabelId via setDefaultLabelId, and persists it', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setDefaultLabelId(7);
+
+      expect(useUIStore.getState().defaultLabelId).toBe(7);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('default_label_id', '7');
+    });
+
+    it('deletes the persisted setting when set back to null', async () => {
+      const api = installMockApi();
+      useUIStore.getState().setDefaultLabelId(7);
+
+      useUIStore.getState().setDefaultLabelId(null);
+
+      expect(useUIStore.getState().defaultLabelId).toBeNull();
+      await Promise.resolve();
+      expect(api.delete).toHaveBeenCalledWith('default_label_id');
+    });
+
+    describe('initDefaultLabelId', () => {
+      it('applies a valid persisted label id', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '4' }) });
+
+        await useUIStore.getState().initDefaultLabelId();
+
+        expect(useUIStore.getState().defaultLabelId).toBe(4);
+      });
+
+      it('stays null when nothing is persisted', async () => {
+        await useUIStore.getState().initDefaultLabelId();
+
+        expect(useUIStore.getState().defaultLabelId).toBeNull();
       });
     });
   });

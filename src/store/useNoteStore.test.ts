@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useNoteStore } from './useNoteStore';
+import { useToastStore } from './useToastStore';
 import type { PublicNoteRow } from '../services/notesService';
 import type { StoryNoteAPI } from '../../electron/preloadApi';
 
@@ -34,6 +35,7 @@ interface MockNotesApi {
   restore: ReturnType<typeof vi.fn>;
   purge: ReturnType<typeof vi.fn>;
   export: ReturnType<typeof vi.fn>;
+  import: ReturnType<typeof vi.fn>;
   lock: ReturnType<typeof vi.fn>;
   unlock: ReturnType<typeof vi.fn>;
   removeLock: ReturnType<typeof vi.fn>;
@@ -68,6 +70,7 @@ function installMockApi(
     restore: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     purge: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
     export: vi.fn(),
+    import: vi.fn(),
     lock: vi.fn(),
     unlock: vi.fn(),
     removeLock: vi.fn(),
@@ -119,6 +122,7 @@ beforeEach(() => {
     _loadRequestId: 0,
     _searchRequestId: 0,
   });
+  useToastStore.setState({ toasts: [] });
 });
 
 afterEach(() => {
@@ -321,6 +325,102 @@ describe('createNote', () => {
 
     expect(useNoteStore.getState().searchQuery).toBe('');
     expect(useNoteStore.getState().searchResults).toEqual([]);
+  });
+});
+
+describe('importNotes', () => {
+  it('switches to the active filter, reloads, selects the last imported note, and toasts success', async () => {
+    const first = note(5, { title: 'a' });
+    const second = note(6, { title: 'b' });
+    installMockApi({
+      import: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { cancelled: false, imported: [first, second], failed: [] },
+      }),
+      list: vi.fn().mockResolvedValue({ ok: true, data: [first, second] }),
+    });
+    useNoteStore.setState({ filter: 'archived' });
+
+    await useNoteStore.getState().importNotes();
+
+    expect(useNoteStore.getState().filter).toBe('active');
+    expect(useNoteStore.getState().activeNoteId).toBe(6);
+    expect(useNoteStore.getState().notes).toEqual([first, second]);
+    expect(useToastStore.getState().toasts).toEqual([
+      { id: expect.any(Number), message: 'Imported 2 notes', variant: 'success' },
+    ]);
+  });
+
+  it('does nothing when the user cancels the dialog', async () => {
+    installMockApi({
+      import: vi
+        .fn()
+        .mockResolvedValue({ ok: true, data: { cancelled: true, imported: [], failed: [] } }),
+    });
+    useNoteStore.setState({ filter: 'archived', activeNoteId: 42 });
+
+    await useNoteStore.getState().importNotes();
+
+    expect(useNoteStore.getState().filter).toBe('archived');
+    expect(useNoteStore.getState().activeNoteId).toBe(42);
+    expect(useToastStore.getState().toasts).toEqual([]);
+  });
+
+  it('toasts an error listing the failed file names without blocking successful imports', async () => {
+    const created = note(7);
+    installMockApi({
+      import: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          cancelled: false,
+          imported: [created],
+          failed: [{ fileName: 'bad.txt', message: 'ENOENT' }],
+        },
+      }),
+      list: vi.fn().mockResolvedValue({ ok: true, data: [created] }),
+    });
+
+    await useNoteStore.getState().importNotes();
+
+    expect(useNoteStore.getState().activeNoteId).toBe(7);
+    expect(useToastStore.getState().toasts).toEqual([
+      { id: expect.any(Number), message: 'Imported 1 note', variant: 'success' },
+      { id: expect.any(Number), message: 'Failed to import 1 file: bad.txt', variant: 'error' },
+    ]);
+  });
+
+  it('toasts an error and creates nothing when every file fails', async () => {
+    installMockApi({
+      import: vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          cancelled: false,
+          imported: [],
+          failed: [{ fileName: 'bad.txt', message: 'ENOENT' }],
+        },
+      }),
+    });
+    useNoteStore.setState({ filter: 'archived' });
+
+    await useNoteStore.getState().importNotes();
+
+    // No successful imports — filter/activeNoteId are left untouched, only
+    // the failure toast fires.
+    expect(useNoteStore.getState().filter).toBe('archived');
+    expect(useToastStore.getState().toasts).toEqual([
+      { id: expect.any(Number), message: 'Failed to import 1 file: bad.txt', variant: 'error' },
+    ]);
+  });
+
+  it('surfaces an IPC-level failure via the shared error state', async () => {
+    installMockApi({
+      import: vi.fn().mockRejectedValue(new Error('IPC unavailable')),
+    });
+
+    await useNoteStore.getState().importNotes();
+
+    expect(useNoteStore.getState().error).toBe('IPC unavailable');
+    expect(useToastStore.getState().toasts).toEqual([]);
   });
 });
 

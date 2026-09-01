@@ -89,16 +89,16 @@ body {
 }
 
 /* Note content settings (Note Editor Updates phase) — useUIStore.ts sets
-   these three as inline custom properties on <html> (mirroring how
-   [data-theme] itself is applied), so every note's content responds
-   immediately without a per-note style prop. Defaults here match this
-   app's original hardcoded values, so a user who's never touched these
-   settings sees no change. */
+   these as inline custom properties on <html> (mirroring how [data-theme]
+   itself is applied), so every note's content responds immediately without
+   a per-note style prop. Defaults here match this app's original hardcoded
+   values, so a user who's never touched these settings sees no change. */
 :root {
   --note-font-family: var(--font-content);
   --note-font-size: 16.5px;
   --note-content-width: 720px;
   --note-zoom: 1;
+  --note-line-height: 1.75;
 }
 
 /* TipTap's rendered content area (.tiptap, set by @tiptap/core itself) —
@@ -109,7 +109,7 @@ body {
 .tiptap {
   font-family: var(--note-font-family);
   font-size: var(--note-font-size);
-  line-height: 1.75;
+  line-height: var(--note-line-height);
   color: var(--text-primary);
 }
 
@@ -250,4 +250,32 @@ body {
 .search-match-current {
   background: var(--search-match-current-bg);
   color: var(--search-match-current-text);
+}
+
+/* Themed scrollbars — this app is Electron/Chromium-only, so the
+   ::-webkit-scrollbar rules are what actually render; scrollbar-color is a
+   Firefox-only fallback, harmless here but kept in case that ever changes.
+   Applied globally rather than per-scrollable-element, since every panel
+   (sidebar, note list, editor, Settings modal, ...) scrolls independently
+   and none of them should fall back to the OS's default (light-only on
+   Windows) scrollbar in dark theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-tertiary);
 }

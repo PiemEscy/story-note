@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import { writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
+import { basename, extname } from 'path';
 import type Database from 'better-sqlite3-multiple-ciphers';
 import {
   createNote,
@@ -279,6 +280,112 @@ export async function handleExport(
   });
 }
 
+export interface ImportDeps {
+  showOpenDialog: (
+    window: BrowserWindow | null,
+    options: Electron.OpenDialogOptions,
+  ) => Promise<Electron.OpenDialogReturnValue>;
+  readFile: (path: string) => Promise<string>;
+  getWindow: () => BrowserWindow | null;
+}
+
+// Same lazy-evaluation reasoning as defaultExportDeps above — only executes
+// if a caller omits `deps`, which no test here ever does.
+const defaultImportDeps: ImportDeps = {
+  showOpenDialog: (window, options) =>
+    window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options),
+  readFile: (path) => readFile(path, 'utf-8'),
+  getWindow: () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null,
+};
+
+export interface ImportFailure {
+  fileName: string;
+  message: string;
+}
+
+export interface ImportResult {
+  cancelled: boolean;
+  imported: PublicNoteRow[];
+  failed: ImportFailure[];
+}
+
+// Node's readFile('utf-8') passes a UTF-8 BOM through as a literal
+// character rather than stripping it — left alone, it'd show up as a stray
+// character at the very start of the imported note.
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+// Minimal TipTap doc JSON for a plain-text import — one paragraph per line,
+// rather than reusing the plain-string "legacy content" fallback
+// (useNoteEditor.ts's parseStoredContent), which hands the raw string to
+// TipTap as HTML and doesn't reliably preserve line breaks as paragraphs.
+// An empty line becomes an empty paragraph (no `content` field, matching
+// what editor.getJSON() itself produces for one); an empty file still needs
+// exactly one paragraph, since TipTap's doc schema requires at least one
+// block node.
+function plainTextToDoc(text: string): { type: 'doc'; content: Array<Record<string, unknown>> } {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const paragraphs = lines.map((line) =>
+    line.length > 0
+      ? { type: 'paragraph', content: [{ type: 'text', text: line }] }
+      : { type: 'paragraph' },
+  );
+  return { type: 'doc', content: paragraphs.length > 0 ? paragraphs : [{ type: 'paragraph' }] };
+}
+
+// Imports one or more .txt files as new notes (FR-import) — title from each
+// file's name (extension stripped), full content becomes the note body with
+// no formatting applied (plain-text source). Each file is read and created
+// independently so one bad file (permission error, mid-batch deletion, ...)
+// doesn't abort the rest of the batch; per-file failures are collected and
+// returned alongside whatever did succeed rather than thrown, since a
+// partial batch import is a normal, expected outcome here, not a fatal error.
+export async function handleImport(
+  db: Database.Database,
+  lockSession: LockSession,
+  input: unknown,
+  deps: ImportDeps = defaultImportDeps,
+): Promise<IpcResult<ImportResult>> {
+  return toIpcResultAsync(async () => {
+    const labelId = optionalNullableNumber(input, 'defaultLabelId') ?? null;
+
+    const dialogResult = await deps.showOpenDialog(deps.getWindow(), {
+      filters: [{ name: 'Text File', extensions: ['txt'] }],
+      properties: ['openFile', 'multiSelections'],
+    });
+
+    if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
+      return { cancelled: true, imported: [], failed: [] };
+    }
+
+    const imported: PublicNoteRow[] = [];
+    const failed: ImportFailure[] = [];
+
+    for (const filePath of dialogResult.filePaths) {
+      const fileName = basename(filePath);
+      try {
+        const raw = stripBom(await deps.readFile(filePath));
+        const title = basename(filePath, extname(filePath));
+        const created = createNote(db, {
+          title,
+          content: JSON.stringify(plainTextToDoc(raw)),
+          contentPlain: raw,
+          labelId,
+        });
+        imported.push(toPublicNote(created, lockSession.isUnlocked(created.id)));
+      } catch (error) {
+        failed.push({
+          fileName,
+          message: error instanceof Error ? error.message : 'Failed to read file',
+        });
+      }
+    }
+
+    return { cancelled: false, imported, failed };
+  });
+}
+
 // Sets a new password on a not-yet-locked note. Immediately marks it
 // unlocked for this session too — the user was just viewing/editing it live
 // to get here, so re-prompting them for the password they *just* chose would
@@ -420,6 +527,7 @@ export function registerNotesHandlers(db: Database.Database, lockSession: LockSe
   ipcMain.handle(IPC_CHANNELS.notes.export, (_event, input) =>
     handleExport(db, lockSession, input),
   );
+  ipcMain.handle(IPC_CHANNELS.notes.import, (_event, input) => handleImport(db, lockSession, input));
   ipcMain.handle(IPC_CHANNELS.notes.lock, (_event, input) => handleLock(db, lockSession, input));
   ipcMain.handle(IPC_CHANNELS.notes.unlock, (_event, input) =>
     handleUnlock(db, lockSession, input),

@@ -11,8 +11,12 @@ import {
   NOTE_ZOOM_MAX,
   NOTE_ZOOM_STEP,
   NOTE_ZOOM_DEFAULT,
+  NOTE_LINE_HEIGHT_MIN,
+  NOTE_LINE_HEIGHT_MAX,
+  NOTE_LINE_HEIGHT_STEP,
 } from '../store/useUIStore';
 import type { ThemeMode, NoteFontFamily } from '../store/useUIStore';
+import { useLabelStore } from '../store/useLabelStore';
 import { keyModeService } from '../services/keyModeService';
 import type { KeyMode } from '../services/keyModeService';
 import { CONTENT_SHORTCUTS } from '../editor/contentShortcuts';
@@ -147,6 +151,11 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
   const noteZoom = useUIStore((state) => state.noteZoom);
   const setNoteZoom = useUIStore((state) => state.setNoteZoom);
   const resetNoteZoom = useUIStore((state) => state.resetNoteZoom);
+  const noteLineHeight = useUIStore((state) => state.noteLineHeight);
+  const setNoteLineHeight = useUIStore((state) => state.setNoteLineHeight);
+  const defaultLabelId = useUIStore((state) => state.defaultLabelId);
+  const setDefaultLabelId = useUIStore((state) => state.setDefaultLabelId);
+  const labels = useLabelStore((state) => state.labels);
 
   const [keyMode, setKeyMode] = useState<KeyMode | null>(null);
   const [isEnablingPassword, setIsEnablingPassword] = useState(false);
@@ -210,7 +219,7 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="max-h-[85vh] w-[420px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-surface-raised)] p-[22px] shadow-[0_12px_32px_rgba(15,23,42,0.18)]"
+        className="max-h-[88vh] w-[520px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-surface-raised)] p-[26px] shadow-[0_12px_32px_rgba(15,23,42,0.18)]"
         onClick={(event) => event.stopPropagation()}
       >
         <h3
@@ -291,7 +300,38 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
             displayValue={`${noteContentWidth}px`}
             onChange={setNoteContentWidth}
           />
+          <SliderRow
+            label="Line spacing"
+            description="Vertical space between lines of note content"
+            value={noteLineHeight}
+            min={NOTE_LINE_HEIGHT_MIN}
+            max={NOTE_LINE_HEIGHT_MAX}
+            step={NOTE_LINE_HEIGHT_STEP}
+            displayValue={noteLineHeight.toFixed(2)}
+            onChange={setNoteLineHeight}
+          />
         </div>
+
+        <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+          Default label
+        </span>
+        <p className="mb-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+          Applied automatically to new notes and .txt imports
+        </p>
+        <select
+          value={defaultLabelId ?? ''}
+          onChange={(event) =>
+            setDefaultLabelId(event.target.value === '' ? null : Number(event.target.value))
+          }
+          className="mb-4 w-full rounded-md border border-[var(--border)] bg-[var(--bg-input)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none"
+        >
+          <option value="">None</option>
+          {labels.map((label) => (
+            <option key={label.id} value={label.id}>
+              {label.name}
+            </option>
+          ))}
+        </select>
 
         <div className="mb-4 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
           <ToggleRow

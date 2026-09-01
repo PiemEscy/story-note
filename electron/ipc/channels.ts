@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
     restore: 'storynote:notes:restore',
     purge: 'storynote:notes:purge',
     export: 'storynote:notes:export',
+    import: 'storynote:notes:import',
     lock: 'storynote:notes:lock',
     unlock: 'storynote:notes:unlock',
     removeLock: 'storynote:notes:remove-lock',

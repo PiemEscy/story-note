@@ -33,6 +33,8 @@ export {
   FiX as CloseIcon,
   FiChevronUp as ChevronUpIcon,
   FiChevronDown as ChevronDownIcon,
+  FiUpload as ImportIcon,
+  FiAlertCircle as ErrorToastIcon,
 } from 'react-icons/fi';
 
 export {

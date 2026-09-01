@@ -64,6 +64,10 @@ function applyNoteZoom(zoom: number): void {
   if (typeof document === 'undefined') return;
   document.documentElement.style.setProperty('--note-zoom', String(zoom));
 }
+function applyNoteLineHeight(lineHeight: number): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--note-line-height', String(lineHeight));
+}
 
 // jsdom (Vitest's renderer test environment) doesn't implement matchMedia —
 // fall back to 'light' there rather than throwing on module load.
@@ -181,6 +185,21 @@ interface UIState {
   setNoteZoom: (zoom: number) => void;
   resetNoteZoom: () => void;
   initNoteZoom: () => Promise<void>;
+
+  // Line spacing — a free numeric slider (not presets, per the enhancement
+  // spec), applied the same way as the other note-content CSS custom
+  // properties above.
+  noteLineHeight: number;
+  setNoteLineHeight: (lineHeight: number) => void;
+  initNoteLineHeight: () => Promise<void>;
+
+  // The label auto-assigned to notes created via "New note" and .txt import
+  // — null means no default (today's existing behavior). Unlike the note-
+  // content settings above, this isn't applied as a CSS property; callers
+  // (useNoteStore's createNote/importNotes) read defaultLabelId directly.
+  defaultLabelId: number | null;
+  setDefaultLabelId: (labelId: number | null) => void;
+  initDefaultLabelId: () => Promise<void>;
 }
 
 function parseBooleanSetting(stored: string | undefined, fallback: boolean): boolean {
@@ -208,6 +227,11 @@ export const NOTE_ZOOM_MIN = 0.5;
 export const NOTE_ZOOM_MAX = 2;
 export const NOTE_ZOOM_DEFAULT = 1;
 export const NOTE_ZOOM_STEP = 0.1;
+
+export const NOTE_LINE_HEIGHT_MIN = 1.2;
+export const NOTE_LINE_HEIGHT_MAX = 2.2;
+export const NOTE_LINE_HEIGHT_DEFAULT = 1.75;
+export const NOTE_LINE_HEIGHT_STEP = 0.05;
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -529,6 +553,63 @@ export const useUIStore = create<UIState>((set, get) => ({
     if (get().noteZoom !== before) return;
     set({ noteZoom });
     applyNoteZoom(noteZoom);
+  },
+
+  noteLineHeight: NOTE_LINE_HEIGHT_DEFAULT,
+
+  setNoteLineHeight: (lineHeight) => {
+    const noteLineHeight = clamp(lineHeight, NOTE_LINE_HEIGHT_MIN, NOTE_LINE_HEIGHT_MAX);
+    set({ noteLineHeight });
+    applyNoteLineHeight(noteLineHeight);
+    settingsService.set('note_line_height', String(noteLineHeight)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist note_line_height setting', error);
+    });
+  },
+
+  initNoteLineHeight: async () => {
+    const before = get().noteLineHeight;
+    let noteLineHeight = before;
+    try {
+      const stored = await settingsService.get('note_line_height');
+      const parsed = stored !== undefined ? Number(stored) : NaN;
+      if (Number.isFinite(parsed)) {
+        noteLineHeight = clamp(parsed, NOTE_LINE_HEIGHT_MIN, NOTE_LINE_HEIGHT_MAX);
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted note_line_height setting', error);
+    }
+    if (get().noteLineHeight !== before) return;
+    set({ noteLineHeight });
+    applyNoteLineHeight(noteLineHeight);
+  },
+
+  defaultLabelId: null,
+
+  setDefaultLabelId: (labelId) => {
+    set({ defaultLabelId: labelId });
+    const write =
+      labelId === null
+        ? settingsService.delete('default_label_id')
+        : settingsService.set('default_label_id', String(labelId));
+    write.catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist default_label_id setting', error);
+    });
+  },
+
+  initDefaultLabelId: async () => {
+    const before = get().defaultLabelId;
+    let defaultLabelId = before;
+    try {
+      const stored = await settingsService.get('default_label_id');
+      if (stored !== undefined) {
+        const parsed = Number(stored);
+        defaultLabelId = Number.isFinite(parsed) ? parsed : null;
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted default_label_id setting', error);
+    }
+    if (get().defaultLabelId !== before) return;
+    set({ defaultLabelId });
   },
 }));
 

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { notesService } from '../services/notesService';
-import type { NoteCounts, PublicNoteRow } from '../services/notesService';
+import type { ImportResult, NoteCounts, PublicNoteRow } from '../services/notesService';
 import { labelsService } from '../services/labelsService';
 import { searchService } from '../services/searchService';
 import { settingsService } from '../services/settingsService';
+import { useToastStore } from './useToastStore';
+import { useUIStore } from './useUIStore';
 import type { NoteSortField, SortDirection } from '../../electron/db/notes';
 
 // Renderer-side copies of electron/db/notes.ts's NOTE_SORT_FIELDS/
@@ -78,6 +80,12 @@ interface NoteState {
   search: (query: string) => Promise<void>;
   selectNote: (id: number | null) => void;
   createNote: () => Promise<void>;
+  // Opens the native "choose .txt file(s)" dialog and creates one note per
+  // selected file (main process does the dialog/read/create — see
+  // electron/ipc/notesHandlers.ts's handleImport). Resolves once the whole
+  // batch (including any per-file failures) has been reported via toasts;
+  // does nothing if the user cancels the dialog.
+  importNotes: () => Promise<void>;
   // Returns whether the save succeeded — EditorPanel's autosave uses this to
   // decide whether it's safe to mark the edit as "saved" (see updateNote's
   // implementation below for why that distinction matters).
@@ -249,7 +257,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   createNote: async () => {
     try {
-      const note = await notesService.create({});
+      const note = await notesService.create({ labelId: useUIStore.getState().defaultLabelId });
       set({ filter: 'active', labelFilter: null, searchQuery: '', searchResults: [] });
       await get().loadNotes();
       set({ activeNoteId: note.id });
@@ -257,6 +265,35 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       void get().loadNoteCounts();
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to create note') });
+    }
+  },
+
+  importNotes: async () => {
+    let result: ImportResult;
+    try {
+      result = await notesService.import(useUIStore.getState().defaultLabelId);
+    } catch (error) {
+      set({ error: messageFrom(error, 'Failed to import notes') });
+      return;
+    }
+    if (result.cancelled) return;
+
+    if (result.imported.length > 0) {
+      set({ filter: 'active', labelFilter: null, searchQuery: '', searchResults: [] });
+      await get().loadNotes();
+      const lastImported = result.imported[result.imported.length - 1];
+      set({ activeNoteId: lastImported.id });
+      persistLastNoteId(lastImported.id);
+      void get().loadNoteCounts();
+      const noun = result.imported.length === 1 ? 'note' : 'notes';
+      useToastStore.getState().pushToast(`Imported ${result.imported.length} ${noun}`, 'success');
+    }
+    if (result.failed.length > 0) {
+      const noun = result.failed.length === 1 ? 'file' : 'files';
+      const names = result.failed.map((failure) => failure.fileName).join(', ');
+      useToastStore
+        .getState()
+        .pushToast(`Failed to import ${result.failed.length} ${noun}: ${names}`, 'error');
     }
   },
 

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import NoteList from './components/NoteList';
 import EditorPanel from './components/EditorPanel';
+import ToastContainer from './components/ToastContainer';
 import { useNoteStore } from './store/useNoteStore';
 import { useLabelStore } from './store/useLabelStore';
 import { useUIStore } from './store/useUIStore';
@@ -28,6 +29,8 @@ function App(): React.JSX.Element {
   const initNoteFontSize = useUIStore((state) => state.initNoteFontSize);
   const initNoteContentWidth = useUIStore((state) => state.initNoteContentWidth);
   const initNoteZoom = useUIStore((state) => state.initNoteZoom);
+  const initNoteLineHeight = useUIStore((state) => state.initNoteLineHeight);
+  const initDefaultLabelId = useUIStore((state) => state.initDefaultLabelId);
 
   useEffect(() => {
     // initLastNote needs the 'active' list actually loaded before it can
@@ -54,6 +57,8 @@ function App(): React.JSX.Element {
     void initNoteFontSize();
     void initNoteContentWidth();
     void initNoteZoom();
+    void initNoteLineHeight();
+    void initDefaultLabelId();
   }, [
     loadNotes,
     loadNoteCounts,
@@ -72,6 +77,8 @@ function App(): React.JSX.Element {
     initNoteFontSize,
     initNoteContentWidth,
     initNoteZoom,
+    initNoteLineHeight,
+    initDefaultLabelId,
   ]);
 
   // Phase 10's global keyboard shortcuts (electron/shortcuts.ts) fire from
@@ -91,6 +98,7 @@ function App(): React.JSX.Element {
       <Sidebar />
       <NoteList />
       <EditorPanel />
+      <ToastContainer />
 
       {error && (
         <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-surface-raised)] px-4 py-2 text-[12.5px] text-[#DC2626] shadow-[0_4px_16px_rgba(15,23,42,0.12)]">
