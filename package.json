@@ -34,6 +34,7 @@
     "@tiptap/react": "^3.30.5",
     "@tiptap/starter-kit": "^3.30.5",
     "better-sqlite3-multiple-ciphers": "^13.0.3",
+    "react-icons": "^5.7.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

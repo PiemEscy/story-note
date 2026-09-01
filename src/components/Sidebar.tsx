@@ -18,6 +18,7 @@ import {
   SearchIcon,
   SettingsIcon,
   SidebarCollapseIcon,
+  SidebarExpandIcon,
 } from './icons';
 import LabelModal from './LabelModal';
 import SettingsModal from './SettingsModal';
@@ -180,9 +181,11 @@ function Sidebar(): React.JSX.Element {
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
-          <SidebarCollapseIcon
-            className={`h-4 w-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`}
-          />
+          {sidebarCollapsed ? (
+            <SidebarExpandIcon className="h-4 w-4" />
+          ) : (
+            <SidebarCollapseIcon className="h-4 w-4" />
+          )}
         </button>
       </div>
 
