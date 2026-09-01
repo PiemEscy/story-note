@@ -86,6 +86,12 @@ interface UIState {
   setSidebarWidth: (width: number) => void;
   initSidebarWidth: () => Promise<void>;
 
+  // Sidebar collapse-to-icon-rail toggle. Persisted to
+  // settings.sidebar_collapsed; built by mirroring compactMode exactly.
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  initSidebarCollapsed: () => Promise<void>;
+
   // Phase 11 — Settings panel. Unlike compactMode/theme above, these two go
   // through windowService (not settingsService directly): the live window
   // and the OS login-item registration both need to change immediately, not
@@ -116,6 +122,7 @@ function parseBooleanSetting(stored: string | undefined, fallback: boolean): boo
 export const SIDEBAR_MIN_WIDTH = 180;
 export const SIDEBAR_MAX_WIDTH = 480;
 export const SIDEBAR_DEFAULT_WIDTH = 240;
+export const SIDEBAR_COLLAPSED_WIDTH = 56;
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -226,6 +233,28 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
     if (get().sidebarWidth !== before) return;
     set({ sidebarWidth });
+  },
+
+  sidebarCollapsed: false,
+
+  setSidebarCollapsed: (sidebarCollapsed) => {
+    set({ sidebarCollapsed });
+    settingsService.set('sidebar_collapsed', String(sidebarCollapsed)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist sidebar_collapsed setting', error);
+    });
+  },
+
+  initSidebarCollapsed: async () => {
+    const before = get().sidebarCollapsed;
+    let sidebarCollapsed = before;
+    try {
+      const stored = await settingsService.get('sidebar_collapsed');
+      sidebarCollapsed = parseBooleanSetting(stored, before);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted sidebar_collapsed setting', error);
+    }
+    if (get().sidebarCollapsed !== before) return;
+    set({ sidebarCollapsed });
   },
 
   alwaysOnTop: false,

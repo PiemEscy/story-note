@@ -174,6 +174,25 @@ export function NumberedListIcon({ className }: IconProps): React.JSX.Element {
   );
 }
 
+// Sidebar collapse/expand toggle — no reference markup to match (the UI
+// reference has no collapse feature). One icon, rotated 180° by the caller
+// between "collapse" (pointing left) and "expand" (pointing right) rather
+// than two separate components.
+export function SidebarCollapseIcon({ className }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16M14 9l-3 3 3 3" />
+    </svg>
+  );
+}
+
 export function BackIcon({ className }: IconProps): React.JSX.Element {
   return (
     <svg

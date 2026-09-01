@@ -20,6 +20,7 @@ function App(): React.JSX.Element {
   const initView = useUIStore((state) => state.initView);
   const initCompactMode = useUIStore((state) => state.initCompactMode);
   const initSidebarWidth = useUIStore((state) => state.initSidebarWidth);
+  const initSidebarCollapsed = useUIStore((state) => state.initSidebarCollapsed);
   const initAlwaysOnTop = useUIStore((state) => state.initAlwaysOnTop);
   const initLaunchOnStartup = useUIStore((state) => state.initLaunchOnStartup);
   const initStartMinimized = useUIStore((state) => state.initStartMinimized);
@@ -41,6 +42,7 @@ function App(): React.JSX.Element {
     void initView();
     void initCompactMode();
     void initSidebarWidth();
+    void initSidebarCollapsed();
     void initAlwaysOnTop();
     void initLaunchOnStartup();
     void initStartMinimized();
@@ -54,6 +56,7 @@ function App(): React.JSX.Element {
     initView,
     initCompactMode,
     initSidebarWidth,
+    initSidebarCollapsed,
     initAlwaysOnTop,
     initLaunchOnStartup,
     initStartMinimized,
