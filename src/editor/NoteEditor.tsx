@@ -12,11 +12,12 @@ interface NoteEditorProps {
 function NoteEditor({ editor }: NoteEditorProps): React.JSX.Element | null {
   if (!editor) return null;
 
+  // Font family/size, content width, and zoom all come from .tiptap's own
+  // CSS rule (main.css) and the .note-content-frame wrapper (EditorPanel.tsx)
+  // now — driven by useUIStore's note-content settings — rather than fixed
+  // Tailwind classes here.
   return (
-    <EditorContent
-      editor={editor}
-      className="text-[16.5px] leading-[1.75] text-[var(--text-primary)] [&_.tiptap]:min-h-[40vh] [&_.tiptap]:outline-none"
-    />
+    <EditorContent editor={editor} className="[&_.tiptap]:min-h-[40vh] [&_.tiptap]:outline-none" />
   );
 }
 

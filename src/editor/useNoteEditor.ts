@@ -6,6 +6,8 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { Editor, JSONContent } from '@tiptap/react';
+import { ContentShortcuts } from './contentShortcuts';
+import { SearchHighlight } from './searchHighlight';
 
 // notes.content stores a JSON-stringified TipTap document (schema.md /
 // development-plan.md Phase 4). Notes created before this phase have plain
@@ -52,6 +54,8 @@ export function useNoteEditor({ content, onUpdate }: UseNoteEditorOptions): Edit
       TableHeader,
       TableCell,
       Placeholder.configure({ placeholder: 'Start writing…' }),
+      ContentShortcuts,
+      SearchHighlight,
     ],
     content: parseStoredContent(content),
     onUpdate: ({ editor }) => {

@@ -28,6 +28,11 @@ export {
   FiCheck as CheckIcon,
   FiGrid as GridViewIcon,
   FiSidebar as SidebarViewIcon,
+  FiBold as BoldIcon,
+  FiItalic as ItalicIcon,
+  FiX as CloseIcon,
+  FiChevronUp as ChevronUpIcon,
+  FiChevronDown as ChevronDownIcon,
 } from 'react-icons/fi';
 
 export {
@@ -37,6 +42,12 @@ export {
   TbColumns as LargeGridViewIcon,
   TbLayoutSidebarLeftCollapse as SidebarCollapseIcon,
   TbLayoutSidebarLeftExpand as SidebarExpandIcon,
+  TbStrikethrough as StrikethroughIcon,
+  TbRowInsertBottom as AddRowIcon,
+  TbColumnInsertRight as AddColumnIcon,
+  TbRowRemove as DeleteRowIcon,
+  TbColumnRemove as DeleteColumnIcon,
+  TbTableOff as DeleteTableIcon,
 } from 'react-icons/tb';
 
 // storynote-ui-reference.html's .pin-icon / editor topbar "Pin note" button

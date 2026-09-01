@@ -24,6 +24,10 @@ function App(): React.JSX.Element {
   const initAlwaysOnTop = useUIStore((state) => state.initAlwaysOnTop);
   const initLaunchOnStartup = useUIStore((state) => state.initLaunchOnStartup);
   const initStartMinimized = useUIStore((state) => state.initStartMinimized);
+  const initNoteFontFamily = useUIStore((state) => state.initNoteFontFamily);
+  const initNoteFontSize = useUIStore((state) => state.initNoteFontSize);
+  const initNoteContentWidth = useUIStore((state) => state.initNoteContentWidth);
+  const initNoteZoom = useUIStore((state) => state.initNoteZoom);
 
   useEffect(() => {
     // initLastNote needs the 'active' list actually loaded before it can
@@ -46,6 +50,10 @@ function App(): React.JSX.Element {
     void initAlwaysOnTop();
     void initLaunchOnStartup();
     void initStartMinimized();
+    void initNoteFontFamily();
+    void initNoteFontSize();
+    void initNoteContentWidth();
+    void initNoteZoom();
   }, [
     loadNotes,
     loadNoteCounts,
@@ -60,6 +68,10 @@ function App(): React.JSX.Element {
     initAlwaysOnTop,
     initLaunchOnStartup,
     initStartMinimized,
+    initNoteFontFamily,
+    initNoteFontSize,
+    initNoteContentWidth,
+    initNoteZoom,
   ]);
 
   // Phase 10's global keyboard shortcuts (electron/shortcuts.ts) fire from

@@ -50,6 +50,10 @@ beforeEach(() => {
     alwaysOnTop: false,
     launchOnStartup: false,
     startMinimized: false,
+    noteFontFamily: 'serif',
+    noteFontSize: 16.5,
+    noteContentWidth: 720,
+    noteZoom: 1,
   });
   installMockApi();
 });
@@ -491,6 +495,173 @@ describe('useUIStore', () => {
         await useUIStore.getState().initStartMinimized();
 
         expect(useUIStore.getState().startMinimized).toBe(true);
+      });
+    });
+  });
+
+  describe('note font family', () => {
+    it('defaults noteFontFamily to serif', () => {
+      expect(useUIStore.getState().noteFontFamily).toBe('serif');
+    });
+
+    it('updates noteFontFamily via setNoteFontFamily, applies it to <html>, and persists it', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setNoteFontFamily('mono');
+
+      expect(useUIStore.getState().noteFontFamily).toBe('mono');
+      expect(document.documentElement.style.getPropertyValue('--note-font-family')).toBe(
+        'var(--font-mono)',
+      );
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('note_font_family', 'mono');
+    });
+
+    describe('initNoteFontFamily', () => {
+      it('applies a valid persisted family', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'sans' }) });
+
+        await useUIStore.getState().initNoteFontFamily();
+
+        expect(useUIStore.getState().noteFontFamily).toBe('sans');
+      });
+
+      it('falls back to the current default for an invalid persisted value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'comic-sans' }) });
+
+        await useUIStore.getState().initNoteFontFamily();
+
+        expect(useUIStore.getState().noteFontFamily).toBe('serif');
+      });
+    });
+  });
+
+  describe('note font size', () => {
+    it('defaults noteFontSize to 16.5', () => {
+      expect(useUIStore.getState().noteFontSize).toBe(16.5);
+    });
+
+    it('updates noteFontSize via setNoteFontSize, applies it to <html>, and persists it', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setNoteFontSize(18);
+
+      expect(useUIStore.getState().noteFontSize).toBe(18);
+      expect(document.documentElement.style.getPropertyValue('--note-font-size')).toBe('18px');
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('note_font_size', '18');
+    });
+
+    it('clamps setNoteFontSize to [13, 22]', () => {
+      installMockApi();
+
+      useUIStore.getState().setNoteFontSize(5);
+      expect(useUIStore.getState().noteFontSize).toBe(13);
+
+      useUIStore.getState().setNoteFontSize(40);
+      expect(useUIStore.getState().noteFontSize).toBe(22);
+    });
+
+    describe('initNoteFontSize', () => {
+      it('applies a valid persisted size', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '19' }) });
+
+        await useUIStore.getState().initNoteFontSize();
+
+        expect(useUIStore.getState().noteFontSize).toBe(19);
+      });
+
+      it('clamps a persisted size outside [13, 22]', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '99' }) });
+
+        await useUIStore.getState().initNoteFontSize();
+
+        expect(useUIStore.getState().noteFontSize).toBe(22);
+      });
+    });
+  });
+
+  describe('note content width', () => {
+    it('defaults noteContentWidth to 720', () => {
+      expect(useUIStore.getState().noteContentWidth).toBe(720);
+    });
+
+    it('updates noteContentWidth via setNoteContentWidth, applies it to <html>, and persists it', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setNoteContentWidth(600);
+
+      expect(useUIStore.getState().noteContentWidth).toBe(600);
+      expect(document.documentElement.style.getPropertyValue('--note-content-width')).toBe('600px');
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('note_content_width', '600');
+    });
+
+    it('clamps setNoteContentWidth to [480, 1340]', () => {
+      installMockApi();
+
+      useUIStore.getState().setNoteContentWidth(100);
+      expect(useUIStore.getState().noteContentWidth).toBe(480);
+
+      useUIStore.getState().setNoteContentWidth(2000);
+      expect(useUIStore.getState().noteContentWidth).toBe(1340);
+    });
+
+    describe('initNoteContentWidth', () => {
+      it('applies a valid persisted width', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '840' }) });
+
+        await useUIStore.getState().initNoteContentWidth();
+
+        expect(useUIStore.getState().noteContentWidth).toBe(840);
+      });
+    });
+  });
+
+  describe('note zoom', () => {
+    it('defaults noteZoom to 1', () => {
+      expect(useUIStore.getState().noteZoom).toBe(1);
+    });
+
+    it('updates noteZoom via setNoteZoom, applies it to <html>, and persists it', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setNoteZoom(1.5);
+
+      expect(useUIStore.getState().noteZoom).toBe(1.5);
+      expect(document.documentElement.style.getPropertyValue('--note-zoom')).toBe('1.5');
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('note_zoom', '1.5');
+    });
+
+    it('clamps setNoteZoom to [0.5, 2]', () => {
+      installMockApi();
+
+      useUIStore.getState().setNoteZoom(0.1);
+      expect(useUIStore.getState().noteZoom).toBe(0.5);
+
+      useUIStore.getState().setNoteZoom(5);
+      expect(useUIStore.getState().noteZoom).toBe(2);
+    });
+
+    it('resetNoteZoom sets noteZoom back to 1 and persists it', async () => {
+      const api = installMockApi();
+      useUIStore.getState().setNoteZoom(1.8);
+
+      useUIStore.getState().resetNoteZoom();
+
+      expect(useUIStore.getState().noteZoom).toBe(1);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('note_zoom', '1');
+    });
+
+    describe('initNoteZoom', () => {
+      it('applies a valid persisted zoom', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: '1.2' }) });
+
+        await useUIStore.getState().initNoteZoom();
+
+        expect(useUIStore.getState().noteZoom).toBe(1.2);
       });
     });
   });

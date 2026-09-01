@@ -49,6 +49,9 @@
   --text-tertiary: #8992a0;
   --text-on-accent: #ffffff;
   --scrim: rgba(15, 23, 42, 0.45);
+  --search-match-bg: rgba(250, 204, 21, 0.45);
+  --search-match-current-bg: #f59e0b;
+  --search-match-current-text: #1a1200;
 }
 
 [data-theme='dark'] {
@@ -67,6 +70,9 @@
   --text-on-accent: #ffffff;
   --scrim: rgba(0, 0, 0, 0.6);
   --accent-soft: #1b2740;
+  --search-match-bg: rgba(250, 204, 21, 0.32);
+  --search-match-current-bg: #f59e0b;
+  --search-match-current-text: #1a1200;
 }
 
 html,
@@ -82,14 +88,39 @@ body {
   font-size: 14px;
 }
 
+/* Note content settings (Note Editor Updates phase) — useUIStore.ts sets
+   these three as inline custom properties on <html> (mirroring how
+   [data-theme] itself is applied), so every note's content responds
+   immediately without a per-note style prop. Defaults here match this
+   app's original hardcoded values, so a user who's never touched these
+   settings sees no change. */
+:root {
+  --note-font-family: var(--font-content);
+  --note-font-size: 16.5px;
+  --note-content-width: 720px;
+  --note-zoom: 1;
+}
+
 /* TipTap's rendered content area (.tiptap, set by @tiptap/core itself) —
    mirrors .claude/ui/storynote-ui-reference.html's .note-body rules. Not
    expressible as Tailwind utility classes on the wrapper since these are
    plain descendant-tag selectors for arbitrary rich-text output, not a
    fixed set of elements this app authors directly. */
 .tiptap {
-  font-family: var(--font-content);
+  font-family: var(--note-font-family);
+  font-size: var(--note-font-size);
+  line-height: 1.75;
   color: var(--text-primary);
+}
+
+/* EditorPanel.tsx's content wrapper (mx-auto, centers within it) — sets the
+   reading-column width (narrower = more side margin, wider = less) and the
+   zoom level. zoom (not transform: scale) so it actually reflows at the new
+   size rather than just visually stretching/clipping — Chromium-only, which
+   is fine since this app only ever runs inside Electron. */
+.note-content-frame {
+  max-width: var(--note-content-width);
+  zoom: var(--note-zoom);
 }
 /* Levels 2-3 only — StarterKit is constrained to these in useNoteEditor.ts
    ("Heading 1"/"Heading 2" in the toolbar), matching the UI reference's own
@@ -158,4 +189,18 @@ body {
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/* src/editor/searchHighlight.ts's ProseMirror decorations — in-note Ctrl+F
+   search (and global-search-opened notes, which reuse the same extension)
+   both render through these two classes. The current match gets a solid,
+   distinctly stronger shade than the rest, matching most editors'/browsers'
+   own find-in-page convention. */
+.search-match {
+  background: var(--search-match-bg);
+  border-radius: 2px;
+}
+.search-match-current {
+  background: var(--search-match-current-bg);
+  color: var(--search-match-current-text);
 }
