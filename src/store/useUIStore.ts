@@ -21,12 +21,21 @@ function isViewMode(value: string | undefined): value is ViewMode {
   return VIEW_MODES.includes(value as ViewMode);
 }
 
-// Note Editor Updates — note content display settings. Three presets rather
-// than a free-text font picker (no font-browsing UI exists, and these three
-// already match this app's own established --font-content/--font-ui/
-// --font-mono stacks from main.css, so no new font stack needed).
-export type NoteFontFamily = 'serif' | 'sans' | 'mono';
-const NOTE_FONT_FAMILIES: NoteFontFamily[] = ['serif', 'sans', 'mono'];
+// Note Editor Updates — note content display settings. Presets rather than
+// a free-text font picker (no font-browsing UI exists). The original three
+// reuse this app's own established --font-content/--font-ui/--font-mono
+// stacks from main.css; the three added in the Enhancements phase
+// (palatino/verdana/courier) get their own dedicated --font-note-* stacks
+// instead, so they can't also change the app's own chrome typography.
+export type NoteFontFamily = 'serif' | 'sans' | 'mono' | 'palatino' | 'verdana' | 'courier';
+const NOTE_FONT_FAMILIES: NoteFontFamily[] = [
+  'serif',
+  'sans',
+  'mono',
+  'palatino',
+  'verdana',
+  'courier',
+];
 
 function isNoteFontFamily(value: string | undefined): value is NoteFontFamily {
   return NOTE_FONT_FAMILIES.includes(value as NoteFontFamily);
@@ -36,6 +45,9 @@ const NOTE_FONT_FAMILY_CSS_VALUE: Record<NoteFontFamily, string> = {
   serif: 'var(--font-content)',
   sans: 'var(--font-ui)',
   mono: 'var(--font-mono)',
+  palatino: 'var(--font-note-palatino)',
+  verdana: 'var(--font-note-verdana)',
+  courier: 'var(--font-note-courier)',
 };
 
 function clamp(value: number, min: number, max: number): number {

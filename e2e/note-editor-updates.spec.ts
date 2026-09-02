@@ -316,6 +316,25 @@ test("spell check setting toggles the editor's spellcheck attribute immediately"
   }
 });
 
+test('the Enhancements-phase font presets (Palatino/Verdana/Courier) apply their own CSS stack', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByTitle('Settings').click();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+
+    await dialog.getByRole('button', { name: 'Verdana' }).click();
+
+    const fontFamily = await page.evaluate(() =>
+      document.documentElement.style.getPropertyValue('--note-font-family'),
+    );
+    expect(fontFamily).toBe('var(--font-note-verdana)');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('Tab still navigates between table cells instead of indenting inside a table', async () => {
   const { app, cleanup } = await launchIsolatedApp();
 

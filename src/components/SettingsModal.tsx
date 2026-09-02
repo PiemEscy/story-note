@@ -36,6 +36,9 @@ const NOTE_FONT_FAMILY_OPTIONS: { value: NoteFontFamily; label: string }[] = [
   { value: 'serif', label: 'Serif' },
   { value: 'sans', label: 'Sans-serif' },
   { value: 'mono', label: 'Monospace' },
+  { value: 'palatino', label: 'Palatino' },
+  { value: 'verdana', label: 'Verdana' },
+  { value: 'courier', label: 'Courier' },
 ];
 
 // GLOBAL_SHORTCUTS mirrors electron/shortcuts.ts's real accelerators
@@ -254,13 +257,13 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
         <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
           Note content
         </span>
-        <div className="mb-4 flex gap-1.5">
+        <div className="mb-4 grid grid-cols-3 gap-1.5">
           {NOTE_FONT_FAMILY_OPTIONS.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => setNoteFontFamily(option.value)}
-              className={`flex-1 rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+              className={`rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
                 noteFontFamily === option.value
                   ? 'border-[var(--accent)] bg-[var(--bg-active)] text-[var(--accent)]'
                   : 'border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'

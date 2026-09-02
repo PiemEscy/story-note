@@ -10,6 +10,16 @@
   --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
 }
 
+/* Extra note-content font presets (Enhancements phase) — alternates to the
+   three above, kept as their own stacks (not reused from --font-ui/
+   --font-content/--font-mono) so picking one only changes note content, not
+   the app's own chrome. System fonts only, same reasoning as above. */
+:root {
+  --font-note-verdana: Verdana, 'DejaVu Sans', sans-serif;
+  --font-note-palatino: 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+  --font-note-courier: 'Courier New', Courier, monospace;
+}
+
 /* ---- Theme tokens ----
    Plain custom properties (not Tailwind's @theme) since these switch at
    runtime via the [data-theme] attribute useUIStore.ts sets on <html> —

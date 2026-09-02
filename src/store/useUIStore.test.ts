@@ -554,6 +554,15 @@ describe('useUIStore', () => {
       expect(api.set).toHaveBeenCalledWith('note_font_family', 'mono');
     });
 
+    it('applies one of the Enhancements-phase presets to its own dedicated stack', () => {
+      useUIStore.getState().setNoteFontFamily('palatino');
+
+      expect(useUIStore.getState().noteFontFamily).toBe('palatino');
+      expect(document.documentElement.style.getPropertyValue('--note-font-family')).toBe(
+        'var(--font-note-palatino)',
+      );
+    });
+
     describe('initNoteFontFamily', () => {
       it('applies a valid persisted family', async () => {
         installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'sans' }) });
