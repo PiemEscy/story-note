@@ -160,6 +160,15 @@ interface UIState {
   setStartMinimized: (value: boolean) => void;
   initStartMinimized: () => Promise<void>;
 
+  // Enhancements phase — was previously always on (hardcoded), with no way
+  // to turn it off. Applied directly to the TipTap DOM node by
+  // useNoteEditor.ts rather than as a CSS custom property like the
+  // note-content settings below, since spellcheck is a DOM/browser
+  // attribute, not a style.
+  spellCheckEnabled: boolean;
+  setSpellCheckEnabled: (value: boolean) => void;
+  initSpellCheckEnabled: () => Promise<void>;
+
   // Note Editor Updates — font family/size, content-column width ("margin"),
   // and zoom. All four apply globally (every note, not per-note) and
   // persist through settingsService, mirroring compactMode/theme exactly.
@@ -441,6 +450,28 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
     if (get().startMinimized !== before) return;
     set({ startMinimized });
+  },
+
+  spellCheckEnabled: true,
+
+  setSpellCheckEnabled: (value) => {
+    set({ spellCheckEnabled: value });
+    settingsService.set('spell_check_enabled', String(value)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist spell_check_enabled setting', error);
+    });
+  },
+
+  initSpellCheckEnabled: async () => {
+    const before = get().spellCheckEnabled;
+    let spellCheckEnabled = before;
+    try {
+      const stored = await settingsService.get('spell_check_enabled');
+      spellCheckEnabled = parseBooleanSetting(stored, before);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted spell_check_enabled setting', error);
+    }
+    if (get().spellCheckEnabled !== before) return;
+    set({ spellCheckEnabled });
   },
 
   noteFontFamily: 'serif',

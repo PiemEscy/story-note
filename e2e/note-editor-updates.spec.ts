@@ -296,6 +296,26 @@ test('Tab nests a list item under its previous sibling, Shift+Tab un-nests it', 
   }
 });
 
+test("spell check setting toggles the editor's spellcheck attribute immediately", async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'New note' }).first().click();
+    await page.locator('.tiptap').click();
+    await expect(page.locator('.tiptap')).toHaveAttribute('spellcheck', 'true');
+
+    await page.getByTitle('Settings').click();
+    const dialog = page.getByRole('dialog', { name: 'Settings' });
+    await dialog.getByLabel('Spell check').uncheck();
+    await dialog.getByRole('button', { name: 'Close' }).click();
+
+    await expect(page.locator('.tiptap')).toHaveAttribute('spellcheck', 'false');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('Tab still navigates between table cells instead of indenting inside a table', async () => {
   const { app, cleanup } = await launchIsolatedApp();
 

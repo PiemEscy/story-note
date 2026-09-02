@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
@@ -30,6 +31,7 @@ export function parseStoredContent(raw: string): JSONContent | string {
 export interface UseNoteEditorOptions {
   content: string;
   onUpdate: (content: string, contentPlain: string) => void;
+  spellCheckEnabled: boolean;
 }
 
 // Wraps TipTap's useEditor: parses the stored content column, wires
@@ -37,8 +39,15 @@ export interface UseNoteEditorOptions {
 // text extract (-> notes.content_plain) on every change, per Phase 4's
 // "Serialize to notes.content (TipTap JSON) + derive notes.content_plain on
 // save" checklist item.
-export function useNoteEditor({ content, onUpdate }: UseNoteEditorOptions): Editor | null {
-  return useEditor({
+export function useNoteEditor({
+  content,
+  onUpdate,
+  spellCheckEnabled,
+}: UseNoteEditorOptions): Editor | null {
+  const editor = useEditor({
+    editorProps: {
+      attributes: { spellcheck: String(spellCheckEnabled) },
+    },
     extensions: [
       // Constrained to levels 2-3 (labeled "Heading 1"/"Heading 2" in the
       // toolbar, matching .claude/ui/storynote-ui-reference.html's own
@@ -62,4 +71,13 @@ export function useNoteEditor({ content, onUpdate }: UseNoteEditorOptions): Edit
       onUpdate(JSON.stringify(editor.getJSON()), editor.getText());
     },
   });
+
+  // editorProps.attributes above only seeds the DOM once, at creation — the
+  // Settings toggle needs to apply to an already-open note immediately, with
+  // no restart, so keep the live DOM attribute in sync on every change too.
+  useEffect(() => {
+    editor?.view.dom.setAttribute('spellcheck', String(spellCheckEnabled));
+  }, [editor, spellCheckEnabled]);
+
+  return editor;
 }

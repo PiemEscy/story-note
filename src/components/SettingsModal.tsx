@@ -142,6 +142,8 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
   const setLaunchOnStartup = useUIStore((state) => state.setLaunchOnStartup);
   const alwaysOnTop = useUIStore((state) => state.alwaysOnTop);
   const setAlwaysOnTop = useUIStore((state) => state.setAlwaysOnTop);
+  const spellCheckEnabled = useUIStore((state) => state.spellCheckEnabled);
+  const setSpellCheckEnabled = useUIStore((state) => state.setSpellCheckEnabled);
   const noteFontFamily = useUIStore((state) => state.noteFontFamily);
   const setNoteFontFamily = useUIStore((state) => state.setNoteFontFamily);
   const noteFontSize = useUIStore((state) => state.noteFontSize);
@@ -309,6 +311,14 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
             step={NOTE_LINE_HEIGHT_STEP}
             displayValue={noteLineHeight.toFixed(2)}
             onChange={setNoteLineHeight}
+          />
+        </div>
+        <div className="mb-4 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
+          <ToggleRow
+            label="Spell check"
+            description="Underline misspelled words while typing in note content"
+            checked={spellCheckEnabled}
+            onChange={setSpellCheckEnabled}
           />
         </div>
 

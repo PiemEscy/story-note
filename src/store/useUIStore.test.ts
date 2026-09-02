@@ -50,6 +50,7 @@ beforeEach(() => {
     alwaysOnTop: false,
     launchOnStartup: false,
     startMinimized: false,
+    spellCheckEnabled: true,
     noteFontFamily: 'serif',
     noteFontSize: 16.5,
     noteContentWidth: 720,
@@ -497,6 +498,40 @@ describe('useUIStore', () => {
         await useUIStore.getState().initStartMinimized();
 
         expect(useUIStore.getState().startMinimized).toBe(true);
+      });
+    });
+  });
+
+  describe('spell check', () => {
+    it('defaults spellCheckEnabled to true', () => {
+      expect(useUIStore.getState().spellCheckEnabled).toBe(true);
+    });
+
+    it('updates spellCheckEnabled via setSpellCheckEnabled, and persists the choice', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setSpellCheckEnabled(false);
+
+      expect(useUIStore.getState().spellCheckEnabled).toBe(false);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('spell_check_enabled', 'false');
+    });
+
+    describe('initSpellCheckEnabled', () => {
+      it('applies a persisted "false" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'false' }) });
+
+        await useUIStore.getState().initSpellCheckEnabled();
+
+        expect(useUIStore.getState().spellCheckEnabled).toBe(false);
+      });
+
+      it('falls back to the current default for a missing persisted value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: undefined }) });
+
+        await useUIStore.getState().initSpellCheckEnabled();
+
+        expect(useUIStore.getState().spellCheckEnabled).toBe(true);
       });
     });
   });

@@ -52,6 +52,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   const labels = useLabelStore((state) => state.labels);
   const view = useUIStore((state) => state.view);
   const closeNoteDetail = useUIStore((state) => state.closeNoteDetail);
+  const spellCheckEnabled = useUIStore((state) => state.spellCheckEnabled);
 
   // Locked-and-not-yet-unlocked-this-session: the topbar (label chip, more
   // options) still renders per storynote-ui-reference.html's #lockedPanel
@@ -132,7 +133,11 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
     [scheduleSave],
   );
 
-  const editor = useNoteEditor({ content: note.content, onUpdate: handleEditorUpdate });
+  const editor = useNoteEditor({
+    content: note.content,
+    onUpdate: handleEditorUpdate,
+    spellCheckEnabled,
+  });
 
   useEffect(() => {
     return () => {

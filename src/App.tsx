@@ -25,6 +25,7 @@ function App(): React.JSX.Element {
   const initAlwaysOnTop = useUIStore((state) => state.initAlwaysOnTop);
   const initLaunchOnStartup = useUIStore((state) => state.initLaunchOnStartup);
   const initStartMinimized = useUIStore((state) => state.initStartMinimized);
+  const initSpellCheckEnabled = useUIStore((state) => state.initSpellCheckEnabled);
   const initNoteFontFamily = useUIStore((state) => state.initNoteFontFamily);
   const initNoteFontSize = useUIStore((state) => state.initNoteFontSize);
   const initNoteContentWidth = useUIStore((state) => state.initNoteContentWidth);
@@ -53,6 +54,7 @@ function App(): React.JSX.Element {
     void initAlwaysOnTop();
     void initLaunchOnStartup();
     void initStartMinimized();
+    void initSpellCheckEnabled();
     void initNoteFontFamily();
     void initNoteFontSize();
     void initNoteContentWidth();
@@ -73,6 +75,7 @@ function App(): React.JSX.Element {
     initAlwaysOnTop,
     initLaunchOnStartup,
     initStartMinimized,
+    initSpellCheckEnabled,
     initNoteFontFamily,
     initNoteFontSize,
     initNoteContentWidth,
