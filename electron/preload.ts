@@ -21,6 +21,8 @@ const storyNoteAPI = {
     restore: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.notes.restore, id),
     purge: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.notes.purge, id),
     export: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.notes.export, id),
+    import: (defaultLabelId: number | null) =>
+      ipcRenderer.invoke(IPC_CHANNELS.notes.import, defaultLabelId),
     lock: (id: number, password: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.notes.lock, { id, password }),
     unlock: (id: number, password: string) =>

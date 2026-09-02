@@ -1,5 +1,17 @@
 import type { Editor } from '@tiptap/react';
-import { BulletListIcon, NumberedListIcon, TableIcon } from '../components/icons';
+import {
+  BulletListIcon,
+  NumberedListIcon,
+  TableIcon,
+  BoldIcon,
+  ItalicIcon,
+  StrikethroughIcon,
+  AddRowIcon,
+  AddColumnIcon,
+  DeleteRowIcon,
+  DeleteColumnIcon,
+  DeleteTableIcon,
+} from '../components/icons';
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -77,19 +89,19 @@ function EditorToolbar({ editor }: EditorToolbarProps): React.JSX.Element {
       <Divider />
 
       <ToolbarButton
-        label={<b>B</b>}
+        label={<BoldIcon className="h-[15px] w-[15px]" />}
         title="Bold (Ctrl+B)"
         isActive={editor.isActive('bold')}
         onClick={() => editor.chain().focus().toggleBold().run()}
       />
       <ToolbarButton
-        label={<i>I</i>}
+        label={<ItalicIcon className="h-[15px] w-[15px]" />}
         title="Italic (Ctrl+I)"
         isActive={editor.isActive('italic')}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       />
       <ToolbarButton
-        label={<s>S</s>}
+        label={<StrikethroughIcon className="h-[15px] w-[15px]" />}
         title="Strikethrough"
         isActive={editor.isActive('strike')}
         onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -124,27 +136,27 @@ function EditorToolbar({ editor }: EditorToolbarProps): React.JSX.Element {
         <>
           <Divider />
           <ToolbarButton
-            label="+Row"
+            label={<AddRowIcon className="h-[15px] w-[15px]" />}
             title="Add row below"
             onClick={() => editor.chain().focus().addRowAfter().run()}
           />
           <ToolbarButton
-            label="+Col"
+            label={<AddColumnIcon className="h-[15px] w-[15px]" />}
             title="Add column after"
             onClick={() => editor.chain().focus().addColumnAfter().run()}
           />
           <ToolbarButton
-            label="-Row"
+            label={<DeleteRowIcon className="h-[15px] w-[15px]" />}
             title="Delete current row"
             onClick={() => editor.chain().focus().deleteRow().run()}
           />
           <ToolbarButton
-            label="-Col"
+            label={<DeleteColumnIcon className="h-[15px] w-[15px]" />}
             title="Delete current column"
             onClick={() => editor.chain().focus().deleteColumn().run()}
           />
           <ToolbarButton
-            label="⊠"
+            label={<DeleteTableIcon className="h-[15px] w-[15px]" />}
             title="Delete table"
             onClick={() => editor.chain().focus().deleteTable().run()}
           />

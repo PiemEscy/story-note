@@ -1,8 +1,25 @@
 import { useEffect, useState } from 'react';
-import { useUIStore } from '../store/useUIStore';
-import type { ThemeMode } from '../store/useUIStore';
+import {
+  useUIStore,
+  NOTE_FONT_SIZE_MIN,
+  NOTE_FONT_SIZE_MAX,
+  NOTE_FONT_SIZE_STEP,
+  NOTE_CONTENT_WIDTH_MIN,
+  NOTE_CONTENT_WIDTH_MAX,
+  NOTE_CONTENT_WIDTH_STEP,
+  NOTE_ZOOM_MIN,
+  NOTE_ZOOM_MAX,
+  NOTE_ZOOM_STEP,
+  NOTE_ZOOM_DEFAULT,
+  NOTE_LINE_HEIGHT_MIN,
+  NOTE_LINE_HEIGHT_MAX,
+  NOTE_LINE_HEIGHT_STEP,
+} from '../store/useUIStore';
+import type { ThemeMode, NoteFontFamily } from '../store/useUIStore';
+import { useLabelStore } from '../store/useLabelStore';
 import { keyModeService } from '../services/keyModeService';
 import type { KeyMode } from '../services/keyModeService';
+import { CONTENT_SHORTCUTS } from '../editor/contentShortcuts';
 import { LockIcon } from './icons';
 
 interface SettingsModalProps {
@@ -14,6 +31,74 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
 ];
+
+const NOTE_FONT_FAMILY_OPTIONS: { value: NoteFontFamily; label: string }[] = [
+  { value: 'serif', label: 'Serif' },
+  { value: 'sans', label: 'Sans-serif' },
+  { value: 'mono', label: 'Monospace' },
+];
+
+// GLOBAL_SHORTCUTS mirrors electron/shortcuts.ts's real accelerators
+// (registered main-process side) and Sidebar.tsx's local Ctrl+K — listed
+// here purely for display, not re-implemented; this file never registers a
+// shortcut itself.
+const GLOBAL_SHORTCUTS: { action: string; keybinding: string }[] = [
+  { action: 'New note', keybinding: 'Ctrl+Shift+N' },
+  { action: 'Focus search', keybinding: 'Ctrl+Shift+F / Ctrl+K' },
+  { action: 'Lock all unlocked notes', keybinding: 'Ctrl+Shift+L' },
+];
+
+function SliderRow({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step,
+  displayValue,
+  onChange,
+  onReset,
+}: {
+  label: string;
+  description: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  displayValue: string;
+  onChange: (value: number) => void;
+  onReset?: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="py-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{label}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-[11px] text-[var(--text-tertiary)]">{displayValue}</span>
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="text-[11px] font-semibold text-[var(--accent)] hover:underline"
+            >
+              Reset
+            </button>
+          )}
+        </span>
+      </div>
+      <span className="mb-1.5 block text-[11.5px] text-[var(--text-tertiary)]">{description}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full accent-[var(--accent)]"
+      />
+    </div>
+  );
+}
 
 // storynote-ui-reference.html has no Settings panel markup to match (its own
 // footer only demos the "Settings" button that opens one) — this modal
@@ -57,6 +142,20 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
   const setLaunchOnStartup = useUIStore((state) => state.setLaunchOnStartup);
   const alwaysOnTop = useUIStore((state) => state.alwaysOnTop);
   const setAlwaysOnTop = useUIStore((state) => state.setAlwaysOnTop);
+  const noteFontFamily = useUIStore((state) => state.noteFontFamily);
+  const setNoteFontFamily = useUIStore((state) => state.setNoteFontFamily);
+  const noteFontSize = useUIStore((state) => state.noteFontSize);
+  const setNoteFontSize = useUIStore((state) => state.setNoteFontSize);
+  const noteContentWidth = useUIStore((state) => state.noteContentWidth);
+  const setNoteContentWidth = useUIStore((state) => state.setNoteContentWidth);
+  const noteZoom = useUIStore((state) => state.noteZoom);
+  const setNoteZoom = useUIStore((state) => state.setNoteZoom);
+  const resetNoteZoom = useUIStore((state) => state.resetNoteZoom);
+  const noteLineHeight = useUIStore((state) => state.noteLineHeight);
+  const setNoteLineHeight = useUIStore((state) => state.setNoteLineHeight);
+  const defaultLabelId = useUIStore((state) => state.defaultLabelId);
+  const setDefaultLabelId = useUIStore((state) => state.setDefaultLabelId);
+  const labels = useLabelStore((state) => state.labels);
 
   const [keyMode, setKeyMode] = useState<KeyMode | null>(null);
   const [isEnablingPassword, setIsEnablingPassword] = useState(false);
@@ -120,7 +219,7 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="max-h-[85vh] w-[420px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-surface-raised)] p-[22px] shadow-[0_12px_32px_rgba(15,23,42,0.18)]"
+        className="max-h-[88vh] w-[520px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-surface-raised)] p-[26px] shadow-[0_12px_32px_rgba(15,23,42,0.18)]"
         onClick={(event) => event.stopPropagation()}
       >
         <h3
@@ -150,6 +249,90 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
           ))}
         </div>
 
+        <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+          Note content
+        </span>
+        <div className="mb-4 flex gap-1.5">
+          {NOTE_FONT_FAMILY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setNoteFontFamily(option.value)}
+              className={`flex-1 rounded-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+                noteFontFamily === option.value
+                  ? 'border-[var(--accent)] bg-[var(--bg-active)] text-[var(--accent)]'
+                  : 'border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="mb-4 divide-y divide-[var(--border)] border-t border-b border-[var(--border)] px-0.5">
+          <SliderRow
+            label="Font size"
+            description="Size of note content text"
+            value={noteFontSize}
+            min={NOTE_FONT_SIZE_MIN}
+            max={NOTE_FONT_SIZE_MAX}
+            step={NOTE_FONT_SIZE_STEP}
+            displayValue={`${noteFontSize}px`}
+            onChange={setNoteFontSize}
+          />
+          <SliderRow
+            label="Zoom"
+            description="Scales the whole content view, not just the text"
+            value={noteZoom}
+            min={NOTE_ZOOM_MIN}
+            max={NOTE_ZOOM_MAX}
+            step={NOTE_ZOOM_STEP}
+            displayValue={`${Math.round(noteZoom * 100)}%`}
+            onChange={setNoteZoom}
+            onReset={noteZoom !== NOTE_ZOOM_DEFAULT ? resetNoteZoom : undefined}
+          />
+          <SliderRow
+            label="Content width"
+            description="Narrower means more empty space on either side"
+            value={noteContentWidth}
+            min={NOTE_CONTENT_WIDTH_MIN}
+            max={NOTE_CONTENT_WIDTH_MAX}
+            step={NOTE_CONTENT_WIDTH_STEP}
+            displayValue={`${noteContentWidth}px`}
+            onChange={setNoteContentWidth}
+          />
+          <SliderRow
+            label="Line spacing"
+            description="Vertical space between lines of note content"
+            value={noteLineHeight}
+            min={NOTE_LINE_HEIGHT_MIN}
+            max={NOTE_LINE_HEIGHT_MAX}
+            step={NOTE_LINE_HEIGHT_STEP}
+            displayValue={noteLineHeight.toFixed(2)}
+            onChange={setNoteLineHeight}
+          />
+        </div>
+
+        <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+          Default label
+        </span>
+        <p className="mb-1.5 text-[11.5px] text-[var(--text-tertiary)]">
+          Applied automatically to new notes and .txt imports
+        </p>
+        <select
+          value={defaultLabelId ?? ''}
+          onChange={(event) =>
+            setDefaultLabelId(event.target.value === '' ? null : Number(event.target.value))
+          }
+          className="mb-4 w-full rounded-md border border-[var(--border)] bg-[var(--bg-input)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none"
+        >
+          <option value="">None</option>
+          {labels.map((label) => (
+            <option key={label.id} value={label.id}>
+              {label.name}
+            </option>
+          ))}
+        </select>
+
         <div className="mb-4 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
           <ToggleRow
             label="Compact mode"
@@ -175,6 +358,29 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
             checked={startMinimized}
             onChange={setStartMinimized}
           />
+        </div>
+
+        <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+          Keyboard shortcuts
+        </span>
+        <div className="mb-4 flex flex-col gap-1 rounded-md border border-[var(--border)] p-2.5">
+          {CONTENT_SHORTCUTS.map((shortcut) => (
+            <div key={shortcut.action} className="flex items-center justify-between gap-2">
+              <span className="text-[12px] text-[var(--text-secondary)]">{shortcut.action}</span>
+              <kbd className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-hover)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--text-tertiary)]">
+                {shortcut.keybinding}
+              </kbd>
+            </div>
+          ))}
+          <div className="my-1 h-px bg-[var(--border)]" />
+          {GLOBAL_SHORTCUTS.map((shortcut) => (
+            <div key={shortcut.action} className="flex items-center justify-between gap-2">
+              <span className="text-[12px] text-[var(--text-secondary)]">{shortcut.action}</span>
+              <kbd className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-hover)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--text-tertiary)]">
+                {shortcut.keybinding}
+              </kbd>
+            </div>
+          ))}
         </div>
 
         <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">

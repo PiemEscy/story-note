@@ -7,6 +7,7 @@ import { formatShortDate, formatRelativeTime } from '../utils/formatDate';
 import { useNoteEditor } from '../editor/useNoteEditor';
 import EditorToolbar from '../editor/EditorToolbar';
 import NoteEditor from '../editor/NoteEditor';
+import NoteSearchBar from '../editor/NoteSearchBar';
 import ConfirmDialog from './ConfirmDialog';
 import LockedNotePanel from './LockedNotePanel';
 import LockNoteModal from './LockNoteModal';
@@ -18,6 +19,7 @@ import {
   BackIcon,
   LockIcon,
   PinIcon,
+  SearchIcon,
 } from './icons';
 
 const AUTOSAVE_DELAY_MS = 600;
@@ -40,6 +42,13 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   const exportNote = useNoteStore((state) => state.exportNote);
   const assignLabel = useNoteStore((state) => state.assignLabel);
   const unlockedNoteIds = useNoteStore((state) => state.unlockedNoteIds);
+  // The global sidebar search term (Phase 7) — read directly so a note
+  // opened from a search result auto-highlights it (item 2), reusing the
+  // exact same SearchHighlight mechanism Ctrl+F drives below, rather than a
+  // separate implementation. persists across note selection (selectNote()
+  // doesn't clear it — only changing filter/label does), so this stays
+  // accurate for as long as the search itself is still active.
+  const globalSearchQuery = useNoteStore((state) => state.searchQuery);
   const labels = useLabelStore((state) => state.labels);
   const view = useUIStore((state) => state.view);
   const closeNoteDetail = useUIStore((state) => state.closeNoteDetail);
@@ -139,6 +148,76 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
     };
   }, [note.id, updateNote]);
 
+  // In-note search (Ctrl+F). Local query while the bar is open takes over
+  // from the global sidebar search term; closing reverts to whatever that
+  // global term still is (often none), rather than clearing the highlight
+  // outright — matches item 2's "opening a note from global search results
+  // highlights the matched term" behavior even after the user has looked at
+  // (and closed) their own in-note search in the meantime.
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const effectiveSearchQuery = isSearchOpen ? localSearchQuery : globalSearchQuery;
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setLocalSearchQuery('');
+  }, [setIsSearchOpen, setLocalSearchQuery]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.setSearchQuery(effectiveSearchQuery);
+  }, [editor, effectiveSearchQuery]);
+
+  // Shared by the Ctrl+F shortcut below and the toolbar search button
+  // (JSX further down) — both open the same in-note search bar the same
+  // way, per "same action as clicking Ctrl+F".
+  const openSearch = useCallback(() => {
+    // A non-empty selection at the moment of opening pre-fills the query
+    // with it, matching the conventional browser/editor Ctrl+F behavior —
+    // a bare cursor (no selection) leaves whatever query is already there
+    // untouched instead of clearing it.
+    if (editor) {
+      const { from, to, empty } = editor.state.selection;
+      if (!empty) {
+        const selectedText = editor.state.doc.textBetween(from, to);
+        if (selectedText) setLocalSearchQuery(selectedText);
+      }
+    }
+    setIsSearchOpen(true);
+  }, [editor, setLocalSearchQuery, setIsSearchOpen]);
+
+  // Disabled/unavailable on locked notes (no editor content exists to
+  // search until unlocked) — guarded here rather than relying only on the
+  // editor/toolbar not rendering below, so Ctrl+F itself is a no-op instead
+  // of silently opening a bar over nothing.
+  useEffect(() => {
+    if (isLocked) return;
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        openSearch();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLocked, openSearch]);
+
+  // Esc closes the bar regardless of which element inside it currently has
+  // focus — NoteSearchBar's own input has a narrower onKeyDown for the same
+  // key, so this only actually does anything when focus has moved
+  // elsewhere (e.g. the user clicked back into the editor body).
+  useEffect(() => {
+    if (!isSearchOpen) return;
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSearch();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSearchOpen, closeSearch]);
+
   return (
     // min-w-[300px], not min-w-0: flex-1 (flex-basis:0%) means this pane
     // gets a ZERO scaled shrink factor, so in the CSS flex algorithm's
@@ -154,7 +233,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
     // their own floors first) instead of 0; electron/main.ts's
     // BrowserWindow minWidth accounts for all three floors combined.
     <section className="flex min-w-[300px] flex-1 flex-col bg-[var(--bg-surface)]">
-      <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-2.5">
+      <div className="flex items-start gap-2.5 border-b border-[var(--border)] px-4 py-2.5">
         {showBackButton && (
           <button
             type="button"
@@ -166,7 +245,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
             Back
           </button>
         )}
-        <div className="relative min-w-0">
+        <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setIsLabelMenuOpen((open) => !open)}
@@ -227,7 +306,51 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
           )}
         </div>
 
-        <span className="flex-1" />
+        {/* Item 1: Label | Title block (Title, then Details directly below
+            it) — replacing the old flex-1 spacer. Stacked in their own
+            column, rather than the title/details/em-dash single line this
+            first shipped as, per a follow-up fix: read as one connected
+            title block instead of a wide horizontal gap. The outer row is
+            items-start (not items-center) specifically so the label chip
+            aligns with the *top* line (the title) of that now-two-line
+            block, not centered against its full height. Hidden while
+            locked, matching the title/details group's own prior behavior
+            before this moved up here (note.title itself isn't server-
+            redacted — only content/content_plain are, see
+            electron/ipc/notesHandlers.ts — this is a presentation choice:
+            LockedNotePanel shows the real title in its own body, so
+            repeating an editable title input here, above a panel that says
+            "locked", would be a confusing, inconsistent affordance). */}
+        {isLocked ? (
+          <span className="flex-1" />
+        ) : (
+          <>
+            <span className="mt-0.5 h-4 w-px shrink-0 bg-[var(--border)]" />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <input
+                value={title}
+                onChange={(event) => handleTitleChange(event.target.value)}
+                placeholder="Untitled"
+                className="w-full min-w-0 truncate border-0 bg-transparent text-[13.5px] font-semibold text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
+              />
+              <span className="mt-0.5 truncate font-mono text-[11px] text-[var(--text-tertiary)]">
+                Created {formatShortDate(note.created_at)} · Modified{' '}
+                {formatRelativeTime(note.updated_at)}
+              </span>
+            </div>
+          </>
+        )}
+
+        {!isLocked && (
+          <button
+            type="button"
+            title="Find in note (Ctrl+F)"
+            onClick={openSearch}
+            className="flex h-[26px] w-[26px] items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <SearchIcon className="h-[15px] w-[15px]" />
+          </button>
+        )}
 
         <button
           type="button"
@@ -316,20 +439,26 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
         <>
           {editor && <EditorToolbar editor={editor} />}
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-[720px] px-10 py-8">
-              <input
-                value={title}
-                onChange={(event) => handleTitleChange(event.target.value)}
-                placeholder="Untitled"
-                className="mb-1.5 w-full border-0 text-[26px] font-bold tracking-tight text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
-              />
-              <div className="mb-5 font-mono text-[11.5px] text-[var(--text-tertiary)]">
-                Created {formatShortDate(note.created_at)} · Modified{' '}
-                {formatRelativeTime(note.updated_at)}
+          {/* relative + overflow-hidden here (not on the scrolling div
+              itself) gives NoteSearchBar a positioning context that fills
+              the content area but doesn't scroll with it — an absolutely
+              positioned child of the *scrolling* div would scroll away
+              with the content instead of staying pinned in the corner the
+              way a find bar should. */}
+          <div className="relative flex-1 overflow-hidden">
+            <div className="h-full overflow-y-auto">
+              <div className="note-content-frame mx-auto px-10 py-8">
+                <NoteEditor editor={editor} />
               </div>
-              <NoteEditor editor={editor} />
             </div>
+            {isSearchOpen && editor && (
+              <NoteSearchBar
+                editor={editor}
+                query={localSearchQuery}
+                onQueryChange={setLocalSearchQuery}
+                onClose={closeSearch}
+              />
+            )}
           </div>
         </>
       )}

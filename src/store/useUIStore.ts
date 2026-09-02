@@ -21,6 +21,54 @@ function isViewMode(value: string | undefined): value is ViewMode {
   return VIEW_MODES.includes(value as ViewMode);
 }
 
+// Note Editor Updates — note content display settings. Three presets rather
+// than a free-text font picker (no font-browsing UI exists, and these three
+// already match this app's own established --font-content/--font-ui/
+// --font-mono stacks from main.css, so no new font stack needed).
+export type NoteFontFamily = 'serif' | 'sans' | 'mono';
+const NOTE_FONT_FAMILIES: NoteFontFamily[] = ['serif', 'sans', 'mono'];
+
+function isNoteFontFamily(value: string | undefined): value is NoteFontFamily {
+  return NOTE_FONT_FAMILIES.includes(value as NoteFontFamily);
+}
+
+const NOTE_FONT_FAMILY_CSS_VALUE: Record<NoteFontFamily, string> = {
+  serif: 'var(--font-content)',
+  sans: 'var(--font-ui)',
+  mono: 'var(--font-mono)',
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+// Applied as inline custom properties on <html> (main.css's :root defines
+// the fallback defaults) — same mechanism setTheme uses for [data-theme],
+// so every open note's content responds immediately with no per-note prop.
+function applyNoteFontFamily(family: NoteFontFamily): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty(
+    '--note-font-family',
+    NOTE_FONT_FAMILY_CSS_VALUE[family],
+  );
+}
+function applyNoteFontSize(size: number): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--note-font-size', `${size}px`);
+}
+function applyNoteContentWidth(width: number): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--note-content-width', `${width}px`);
+}
+function applyNoteZoom(zoom: number): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--note-zoom', String(zoom));
+}
+function applyNoteLineHeight(lineHeight: number): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--note-line-height', String(lineHeight));
+}
+
 // jsdom (Vitest's renderer test environment) doesn't implement matchMedia —
 // fall back to 'light' there rather than throwing on module load.
 function getSystemTheme(): ResolvedTheme {
@@ -111,6 +159,47 @@ interface UIState {
   startMinimized: boolean;
   setStartMinimized: (value: boolean) => void;
   initStartMinimized: () => Promise<void>;
+
+  // Note Editor Updates — font family/size, content-column width ("margin"),
+  // and zoom. All four apply globally (every note, not per-note) and
+  // persist through settingsService, mirroring compactMode/theme exactly.
+  noteFontFamily: NoteFontFamily;
+  setNoteFontFamily: (family: NoteFontFamily) => void;
+  initNoteFontFamily: () => Promise<void>;
+
+  noteFontSize: number;
+  setNoteFontSize: (size: number) => void;
+  initNoteFontSize: () => Promise<void>;
+
+  // The reading column's max-width (EditorPanel.tsx's .note-content-frame)
+  // — narrower means more empty space on either side, wider means less.
+  noteContentWidth: number;
+  setNoteContentWidth: (width: number) => void;
+  initNoteContentWidth: () => Promise<void>;
+
+  // Scales the whole content view (CSS zoom, not just font-size) — separate
+  // from noteFontSize per the spec. resetNoteZoom is a distinct action
+  // (not just setNoteZoom(1)) so the Settings panel's "Reset" button reads
+  // as its own affordance rather than a slider drag to a specific value.
+  noteZoom: number;
+  setNoteZoom: (zoom: number) => void;
+  resetNoteZoom: () => void;
+  initNoteZoom: () => Promise<void>;
+
+  // Line spacing — a free numeric slider (not presets, per the enhancement
+  // spec), applied the same way as the other note-content CSS custom
+  // properties above.
+  noteLineHeight: number;
+  setNoteLineHeight: (lineHeight: number) => void;
+  initNoteLineHeight: () => Promise<void>;
+
+  // The label auto-assigned to notes created via "New note" and .txt import
+  // — null means no default (today's existing behavior). Unlike the note-
+  // content settings above, this isn't applied as a CSS property; callers
+  // (useNoteStore's createNote/importNotes) read defaultLabelId directly.
+  defaultLabelId: number | null;
+  setDefaultLabelId: (labelId: number | null) => void;
+  initDefaultLabelId: () => Promise<void>;
 }
 
 function parseBooleanSetting(stored: string | undefined, fallback: boolean): boolean {
@@ -123,6 +212,26 @@ export const SIDEBAR_MIN_WIDTH = 180;
 export const SIDEBAR_MAX_WIDTH = 480;
 export const SIDEBAR_DEFAULT_WIDTH = 240;
 export const SIDEBAR_COLLAPSED_WIDTH = 56;
+
+export const NOTE_FONT_SIZE_MIN = 13;
+export const NOTE_FONT_SIZE_MAX = 22;
+export const NOTE_FONT_SIZE_DEFAULT = 16.5;
+export const NOTE_FONT_SIZE_STEP = 0.5;
+
+export const NOTE_CONTENT_WIDTH_MIN = 480;
+export const NOTE_CONTENT_WIDTH_MAX = 1340;
+export const NOTE_CONTENT_WIDTH_DEFAULT = 720;
+export const NOTE_CONTENT_WIDTH_STEP = 20;
+
+export const NOTE_ZOOM_MIN = 0.5;
+export const NOTE_ZOOM_MAX = 2;
+export const NOTE_ZOOM_DEFAULT = 1;
+export const NOTE_ZOOM_STEP = 0.1;
+
+export const NOTE_LINE_HEIGHT_MIN = 1.2;
+export const NOTE_LINE_HEIGHT_MAX = 2.2;
+export const NOTE_LINE_HEIGHT_DEFAULT = 1.75;
+export const NOTE_LINE_HEIGHT_STEP = 0.05;
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -332,6 +441,175 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
     if (get().startMinimized !== before) return;
     set({ startMinimized });
+  },
+
+  noteFontFamily: 'serif',
+
+  setNoteFontFamily: (noteFontFamily) => {
+    set({ noteFontFamily });
+    applyNoteFontFamily(noteFontFamily);
+    settingsService.set('note_font_family', noteFontFamily).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist note_font_family setting', error);
+    });
+  },
+
+  initNoteFontFamily: async () => {
+    const before = get().noteFontFamily;
+    let noteFontFamily = before;
+    try {
+      const stored = await settingsService.get('note_font_family');
+      if (isNoteFontFamily(stored)) noteFontFamily = stored;
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted note_font_family setting', error);
+    }
+    if (get().noteFontFamily !== before) return;
+    set({ noteFontFamily });
+    applyNoteFontFamily(noteFontFamily);
+  },
+
+  noteFontSize: NOTE_FONT_SIZE_DEFAULT,
+
+  setNoteFontSize: (size) => {
+    const noteFontSize = clamp(size, NOTE_FONT_SIZE_MIN, NOTE_FONT_SIZE_MAX);
+    set({ noteFontSize });
+    applyNoteFontSize(noteFontSize);
+    settingsService.set('note_font_size', String(noteFontSize)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist note_font_size setting', error);
+    });
+  },
+
+  initNoteFontSize: async () => {
+    const before = get().noteFontSize;
+    let noteFontSize = before;
+    try {
+      const stored = await settingsService.get('note_font_size');
+      const parsed = stored !== undefined ? Number(stored) : NaN;
+      if (Number.isFinite(parsed)) {
+        noteFontSize = clamp(parsed, NOTE_FONT_SIZE_MIN, NOTE_FONT_SIZE_MAX);
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted note_font_size setting', error);
+    }
+    if (get().noteFontSize !== before) return;
+    set({ noteFontSize });
+    applyNoteFontSize(noteFontSize);
+  },
+
+  noteContentWidth: NOTE_CONTENT_WIDTH_DEFAULT,
+
+  setNoteContentWidth: (width) => {
+    const noteContentWidth = clamp(width, NOTE_CONTENT_WIDTH_MIN, NOTE_CONTENT_WIDTH_MAX);
+    set({ noteContentWidth });
+    applyNoteContentWidth(noteContentWidth);
+    settingsService.set('note_content_width', String(noteContentWidth)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist note_content_width setting', error);
+    });
+  },
+
+  initNoteContentWidth: async () => {
+    const before = get().noteContentWidth;
+    let noteContentWidth = before;
+    try {
+      const stored = await settingsService.get('note_content_width');
+      const parsed = stored !== undefined ? Number(stored) : NaN;
+      if (Number.isFinite(parsed)) {
+        noteContentWidth = clamp(parsed, NOTE_CONTENT_WIDTH_MIN, NOTE_CONTENT_WIDTH_MAX);
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted note_content_width setting', error);
+    }
+    if (get().noteContentWidth !== before) return;
+    set({ noteContentWidth });
+    applyNoteContentWidth(noteContentWidth);
+  },
+
+  noteZoom: NOTE_ZOOM_DEFAULT,
+
+  setNoteZoom: (zoom) => {
+    const noteZoom = clamp(zoom, NOTE_ZOOM_MIN, NOTE_ZOOM_MAX);
+    set({ noteZoom });
+    applyNoteZoom(noteZoom);
+    settingsService.set('note_zoom', String(noteZoom)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist note_zoom setting', error);
+    });
+  },
+
+  resetNoteZoom: () => {
+    get().setNoteZoom(NOTE_ZOOM_DEFAULT);
+  },
+
+  initNoteZoom: async () => {
+    const before = get().noteZoom;
+    let noteZoom = before;
+    try {
+      const stored = await settingsService.get('note_zoom');
+      const parsed = stored !== undefined ? Number(stored) : NaN;
+      if (Number.isFinite(parsed)) {
+        noteZoom = clamp(parsed, NOTE_ZOOM_MIN, NOTE_ZOOM_MAX);
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted note_zoom setting', error);
+    }
+    if (get().noteZoom !== before) return;
+    set({ noteZoom });
+    applyNoteZoom(noteZoom);
+  },
+
+  noteLineHeight: NOTE_LINE_HEIGHT_DEFAULT,
+
+  setNoteLineHeight: (lineHeight) => {
+    const noteLineHeight = clamp(lineHeight, NOTE_LINE_HEIGHT_MIN, NOTE_LINE_HEIGHT_MAX);
+    set({ noteLineHeight });
+    applyNoteLineHeight(noteLineHeight);
+    settingsService.set('note_line_height', String(noteLineHeight)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist note_line_height setting', error);
+    });
+  },
+
+  initNoteLineHeight: async () => {
+    const before = get().noteLineHeight;
+    let noteLineHeight = before;
+    try {
+      const stored = await settingsService.get('note_line_height');
+      const parsed = stored !== undefined ? Number(stored) : NaN;
+      if (Number.isFinite(parsed)) {
+        noteLineHeight = clamp(parsed, NOTE_LINE_HEIGHT_MIN, NOTE_LINE_HEIGHT_MAX);
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted note_line_height setting', error);
+    }
+    if (get().noteLineHeight !== before) return;
+    set({ noteLineHeight });
+    applyNoteLineHeight(noteLineHeight);
+  },
+
+  defaultLabelId: null,
+
+  setDefaultLabelId: (labelId) => {
+    set({ defaultLabelId: labelId });
+    const write =
+      labelId === null
+        ? settingsService.delete('default_label_id')
+        : settingsService.set('default_label_id', String(labelId));
+    write.catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist default_label_id setting', error);
+    });
+  },
+
+  initDefaultLabelId: async () => {
+    const before = get().defaultLabelId;
+    let defaultLabelId = before;
+    try {
+      const stored = await settingsService.get('default_label_id');
+      if (stored !== undefined) {
+        const parsed = Number(stored);
+        defaultLabelId = Number.isFinite(parsed) ? parsed : null;
+      }
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted default_label_id setting', error);
+    }
+    if (get().defaultLabelId !== before) return;
+    set({ defaultLabelId });
   },
 }));
 

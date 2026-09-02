@@ -14,10 +14,12 @@ import {
   ArchivedIcon,
   TrashNavIcon,
   NewNoteIcon,
+  ImportIcon,
   EditIcon,
   SearchIcon,
   SettingsIcon,
   SidebarCollapseIcon,
+  SidebarExpandIcon,
 } from './icons';
 import LabelModal from './LabelModal';
 import SettingsModal from './SettingsModal';
@@ -46,6 +48,7 @@ function Sidebar(): React.JSX.Element {
   const setLabelFilter = useNoteStore((state) => state.setLabelFilter);
   const noteCounts = useNoteStore((state) => state.noteCounts);
   const createNote = useNoteStore((state) => state.createNote);
+  const importNotes = useNoteStore((state) => state.importNotes);
   const searchQuery = useNoteStore((state) => state.searchQuery);
   const search = useNoteStore((state) => state.search);
   const labels = useLabelStore((state) => state.labels);
@@ -180,9 +183,11 @@ function Sidebar(): React.JSX.Element {
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
-          <SidebarCollapseIcon
-            className={`h-4 w-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`}
-          />
+          {sidebarCollapsed ? (
+            <SidebarExpandIcon className="h-4 w-4" />
+          ) : (
+            <SidebarCollapseIcon className="h-4 w-4" />
+          )}
         </button>
       </div>
 
@@ -385,6 +390,14 @@ function Sidebar(): React.JSX.Element {
         >
           <NewNoteIcon className="h-3.5 w-3.5" />
           {!sidebarCollapsed && 'New note'}
+        </button>
+        <button
+          type="button"
+          title="Import .txt file"
+          onClick={() => void importNotes()}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <ImportIcon className="h-3.5 w-3.5" />
         </button>
       </div>
 

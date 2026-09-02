@@ -1,7 +1,7 @@
 import type { CreateLabelInput, UpdateLabelInput } from './db/labels';
 import type { CreateNoteInput, ListNotesOptions, NoteCounts, UpdateNoteInput } from './db/notes';
 import type { LabelRow } from './db/types';
-import type { PublicNoteRow } from './ipc/notesHandlers';
+import type { ImportResult, PublicNoteRow } from './ipc/notesHandlers';
 import type { IpcResult } from './ipc/types';
 import type { ShortcutAction } from './shortcuts';
 import type { KeyMode } from './db/keys';
@@ -21,6 +21,7 @@ export interface StoryNoteAPI {
     restore: (id: number) => Promise<IpcResult<void>>;
     purge: (id: number) => Promise<IpcResult<void>>;
     export: (id: number) => Promise<IpcResult<{ cancelled: boolean }>>;
+    import: (defaultLabelId: number | null) => Promise<IpcResult<ImportResult>>;
     lock: (id: number, password: string) => Promise<IpcResult<PublicNoteRow>>;
     unlock: (id: number, password: string) => Promise<IpcResult<PublicNoteRow>>;
     removeLock: (id: number, password: string) => Promise<IpcResult<PublicNoteRow>>;
