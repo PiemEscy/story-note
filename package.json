@@ -12,6 +12,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs",
+    "db:inspect": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/inspectDb.cjs",
     "pretest:e2e": "npm run build",
     "test:e2e": "playwright test",
     "start": "electron-vite preview",

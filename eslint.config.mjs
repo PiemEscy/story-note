@@ -31,5 +31,18 @@ export default defineConfig(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  {
+    // scripts/inspectDb.cjs runs unbundled via `electron ... --run-as-node`
+    // (no TypeScript/ESM loader available there) — CommonJS require() is a
+    // real constraint here, not a style choice, matching code-style.md's
+    // carve-out for Electron entry files that can't go through the bundler.
+    files: ['scripts/**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      // Plain CommonJS JS, not TypeScript — there's no type annotation
+      // syntax here for this rule to check against.
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
   eslintConfigPrettier,
 );
