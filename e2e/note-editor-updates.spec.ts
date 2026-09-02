@@ -240,6 +240,88 @@ test('Shift+Alt+ArrowDown duplicates the current block below it', async () => {
   }
 });
 
+test('Tab indents note content instead of moving focus to a toolbar button', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'New note' }).first().click();
+    await page.locator('.tiptap').click();
+    await page.keyboard.type('hello');
+
+    await page.keyboard.press('Tab');
+
+    // Focus stayed in the editor (proven by the indent actually landing in
+    // the paragraph) rather than jumping to the next focusable toolbar
+    // button, which is the bug being fixed. The indent itself is a run of
+    // non-breaking spaces (contentShortcuts.ts) — Playwright's own text
+    // normalization reports these as plain spaces.
+    await expect(page.locator('.tiptap p')).toHaveText('hello    ');
+
+    // Shift+Tab immediately after removes that same indent, cursor still
+    // right after it — outdentCommand only strips a run adjacent to the
+    // cursor, not indentation anywhere else in the block.
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.type('world');
+    await expect(page.locator('.tiptap p')).toHaveText('helloworld');
+  } finally {
+    await cleanup();
+  }
+});
+
+test('Tab nests a list item under its previous sibling, Shift+Tab un-nests it', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'New note' }).first().click();
+    await page.locator('.tiptap').click();
+    await page.getByTitle('Bulleted list').click();
+    await page.keyboard.type('first');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('second');
+
+    await page.keyboard.press('Tab');
+
+    // "second" is now nested under "first" — a sub-list inside "first"'s
+    // own list item, rather than a second top-level item.
+    const topLevelItems = page.locator('.tiptap > ul > li');
+    await expect(topLevelItems).toHaveCount(1);
+    await expect(page.locator('.tiptap ul ul li')).toHaveText('second');
+
+    await page.keyboard.press('Shift+Tab');
+    await expect(topLevelItems).toHaveCount(2);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('Tab still navigates between table cells instead of indenting inside a table', async () => {
+  const { app, cleanup } = await launchIsolatedApp();
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: 'New note' }).first().click();
+    await page.locator('.tiptap').click();
+    await page.getByTitle('Insert table').click();
+
+    const cells = page.locator('.tiptap table th, .tiptap table td');
+    await cells.first().click();
+    await page.keyboard.type('a');
+
+    // contentShortcuts.ts's Tab handler steps aside inside a table so
+    // @tiptap/extension-table's own cell-navigation binding still runs —
+    // typing should land in the *next* cell, not indent the first one.
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('b');
+
+    await expect(cells.nth(0)).toHaveText('a');
+    await expect(cells.nth(1)).toHaveText('b');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('content shortcuts do not fire outside the editor (e.g. while the note title is focused)', async () => {
   const { app, cleanup } = await launchIsolatedApp();
 
