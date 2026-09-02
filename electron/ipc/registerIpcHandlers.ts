@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3-multiple-ciphers';
 import { createLockSession } from '../db/lockSession';
 import type { LockSession } from '../db/lockSession';
+import { registerAiHandlers } from './aiHandlers';
 import { registerLabelsHandlers } from './labelsHandlers';
 import { registerNotesHandlers } from './notesHandlers';
 import { registerSearchHandlers } from './searchHandlers';
@@ -19,5 +20,9 @@ export function registerIpcHandlers(db: Database.Database): LockSession {
   registerLabelsHandlers(db, lockSession);
   registerSettingsHandlers(db);
   registerSearchHandlers(db, lockSession);
+  // No LockSession dependency — ADR-002's surfaces never read existing note
+  // content (chat sends only its own session history; transform sends only
+  // the selected text the renderer already passes in).
+  registerAiHandlers(db);
   return lockSession;
 }
