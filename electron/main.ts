@@ -249,6 +249,13 @@ app.on('before-quit', () => {
   isQuitting = true;
   unregisterGlobalShortcuts();
   db?.close();
+  // Every other guard in this file (scheduleSaveBounds's `if (!db) return`,
+  // createWindow's `db ? ... : undefined`) assumes `db` goes falsy once
+  // closed — without this, a debounced saveBoundsTimeout already scheduled
+  // by a resize/move in the last BOUNDS_SAVE_DELAY_MS still fires after
+  // db.close() above, finds `db` truthy (just no longer open), and crashes
+  // the main process trying to write to a closed connection.
+  db = undefined;
 });
 
 app.on('window-all-closed', () => {
