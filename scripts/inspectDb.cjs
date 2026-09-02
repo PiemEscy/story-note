@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Dev-only tool: opens the REAL StoryNote database read-only (by default)
-// for ad hoc inspection, without going through the running app.
+// Dev-only tool: opens the REAL StoryNote database, strictly read-only, for
+// ad hoc SELECT/PRAGMA/EXPLAIN inspection — without going through the
+// running app.
 //
 // Deliberately NOT written in TypeScript / imported from electron/db/* —
 // this runs under `electron ... --run-as-node` (required so the native
@@ -14,10 +15,13 @@
 //
 // Security posture (do not weaken any of this without re-reading ADR-001 /
 // ADR-002 first):
-//   - Read-only by default (--write opts into read-write, with a warning).
+//   - Always read-only — the SQLite connection itself is opened
+//     read-only, and runStatement() rejects anything that isn't a
+//     SELECT/PRAGMA/EXPLAIN before it ever reaches that connection. There
+//     is no flag, mode, or code path in this file that writes to the
+//     database or prints the encryption key — don't add one; if you need
+//     either, that's a different, more deliberate tool.
 //   - Never runs migrations — schema changes are the app's job only.
-//   - Never prints the encryption key unless --print-key is passed
-//     explicitly, and even then only after a warning banner.
 //   - Reads the *existing* OS credential entry; never creates, overwrites,
 //     or deletes one.
 //   - Must stay excluded from the packaged build (electron-builder.yml's
@@ -50,11 +54,9 @@ const DATABASE_FILENAME = 'storynote.db';
 const KEY_METADATA_FILENAME = 'storynote.keymeta.json';
 
 function parseArgs(argv) {
-  const flags = { write: false, printKey: false, appName: 'storynote', query: null };
+  const flags = { appName: 'storynote', query: null };
   for (const arg of argv) {
-    if (arg === '--write') flags.write = true;
-    else if (arg === '--print-key') flags.printKey = true;
-    else if (arg.startsWith('--app-name=')) flags.appName = arg.slice('--app-name='.length);
+    if (arg.startsWith('--app-name=')) flags.appName = arg.slice('--app-name='.length);
     else if (!arg.startsWith('--')) flags.query = arg;
   }
   return flags;
@@ -128,19 +130,16 @@ async function resolveKey(userDataPath) {
   return getKeyFromPassword(password, metadata.keyDerivationSalt);
 }
 
-function printBanner(dbPath, writable) {
+function printBanner(dbPath) {
   console.log('='.repeat(70));
   console.log('StoryNote DB inspector — dev tool, not part of the shipped app');
   console.log(`  Database: ${dbPath}`);
-  console.log(`  Mode:     ${writable ? 'READ-WRITE (--write)' : 'read-only'}`);
+  console.log('  Mode:     read-only (SELECT/PRAGMA/EXPLAIN only)');
   console.log('');
   console.log("  This bypasses the app's own IPC-layer redaction. A locked");
   console.log("  note's content and password_hash are real columns here,");
   console.log('  visible to any query — treat this output like raw note');
   console.log('  content, not like anything the app itself would show you.');
-  if (!writable) {
-    console.log('  Schema is never migrated by this tool, regardless of mode.');
-  }
   console.log('='.repeat(70));
 }
 
@@ -156,10 +155,17 @@ function printRows(rows) {
   }
 }
 
+// Belt-and-suspenders alongside the read-only connection itself (which
+// would also reject a write, just with a less friendly SQLite error): only
+// SELECT/PRAGMA/EXPLAIN ever reach db.prepare() at all.
 function runStatement(db, sql) {
   const trimmed = sql.trim();
-  const isSelectLike = /^(select|pragma|explain)/i.test(trimmed);
-  return isSelectLike ? db.prepare(trimmed).all() : db.prepare(trimmed).run();
+  if (!/^(select|pragma|explain)/i.test(trimmed)) {
+    throw new Error(
+      'This tool is read-only — only SELECT, PRAGMA, or EXPLAIN statements are allowed.',
+    );
+  }
+  return db.prepare(trimmed).all();
 }
 
 async function runRepl(db) {
@@ -207,13 +213,7 @@ async function main() {
     throw new Error('Resolved key is not a 64-character hex string — something is wrong upstream.');
   }
 
-  if (flags.printKey) {
-    console.log('\n!!! ENCRYPTION KEY (do not share, do not paste into a public place) !!!');
-    console.log(key);
-    console.log('');
-  }
-
-  const db = new Database(dbPath, { readonly: !flags.write, fileMustExist: true });
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
     db.pragma("cipher='sqlcipher'");
     db.pragma('legacy=4');
@@ -223,7 +223,7 @@ async function main() {
     // real read against the (still-encrypted-looking) file.
     db.prepare('SELECT count(*) FROM sqlite_master').get();
 
-    printBanner(dbPath, flags.write);
+    printBanner(dbPath);
 
     if (flags.query) {
       printRows(runStatement(db, flags.query));
