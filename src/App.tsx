@@ -6,6 +6,7 @@ import ToastContainer from './components/ToastContainer';
 import { useNoteStore } from './store/useNoteStore';
 import { useLabelStore } from './store/useLabelStore';
 import { useUIStore } from './store/useUIStore';
+import { useAiStore } from './store/useAiStore';
 
 function App(): React.JSX.Element {
   const loadNotes = useNoteStore((state) => state.loadNotes);
@@ -32,6 +33,7 @@ function App(): React.JSX.Element {
   const initNoteZoom = useUIStore((state) => state.initNoteZoom);
   const initNoteLineHeight = useUIStore((state) => state.initNoteLineHeight);
   const initDefaultLabelId = useUIStore((state) => state.initDefaultLabelId);
+  const loadAiStatus = useAiStore((state) => state.loadStatus);
 
   useEffect(() => {
     // initLastNote needs the 'active' list actually loaded before it can
@@ -61,6 +63,7 @@ function App(): React.JSX.Element {
     void initNoteZoom();
     void initNoteLineHeight();
     void initDefaultLabelId();
+    void loadAiStatus();
   }, [
     loadNotes,
     loadNoteCounts,
@@ -82,6 +85,7 @@ function App(): React.JSX.Element {
     initNoteZoom,
     initNoteLineHeight,
     initDefaultLabelId,
+    loadAiStatus,
   ]);
 
   // Phase 10's global keyboard shortcuts (electron/shortcuts.ts) fire from

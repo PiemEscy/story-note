@@ -35,6 +35,11 @@ export {
   FiChevronDown as ChevronDownIcon,
   FiUpload as ImportIcon,
   FiAlertCircle as ErrorToastIcon,
+  FiSend as SendIcon,
+  FiRefreshCw as RegenerateIcon,
+  FiFileText as SaveAsNoteIcon,
+  FiAlignLeft as SummarizeIcon,
+  FiList as FormatIcon,
 } from 'react-icons/fi';
 
 export {
@@ -50,6 +55,10 @@ export {
   TbRowRemove as DeleteRowIcon,
   TbColumnRemove as DeleteColumnIcon,
   TbTableOff as DeleteTableIcon,
+  // ADR-002 — shared "AI" visual marker (chat header, badge, Ask AI entry
+  // point, transform popup accent) and the Polish transform action.
+  TbSparkles as AiSparkleIcon,
+  TbSparkle as PolishIcon,
 } from 'react-icons/tb';
 
 // storynote-ui-reference.html's .pin-icon / editor topbar "Pin note" button

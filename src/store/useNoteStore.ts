@@ -79,7 +79,16 @@ interface NoteState {
   setLabelFilter: (labelId: number) => Promise<void>;
   search: (query: string) => Promise<void>;
   selectNote: (id: number | null) => void;
-  createNote: () => Promise<void>;
+  // `initial` lets a caller seed title/content/contentPlain directly (e.g.
+  // the AI chat modal's "Save as note" — see useAiChatStore.ts) instead of
+  // always creating an empty note; labelId still always comes from
+  // defaultLabelId, matching plain note creation. Returns the created note
+  // (or null on failure) so callers like saveAsNote can act on its id.
+  createNote: (initial?: {
+    title?: string;
+    content?: string;
+    contentPlain?: string;
+  }) => Promise<PublicNoteRow | null>;
   // Opens the native "choose .txt file(s)" dialog and creates one note per
   // selected file (main process does the dialog/read/create — see
   // electron/ipc/notesHandlers.ts's handleImport). Resolves once the whole
@@ -255,16 +264,21 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     persistLastNoteId(id);
   },
 
-  createNote: async () => {
+  createNote: async (initial) => {
     try {
-      const note = await notesService.create({ labelId: useUIStore.getState().defaultLabelId });
+      const note = await notesService.create({
+        labelId: useUIStore.getState().defaultLabelId,
+        ...initial,
+      });
       set({ filter: 'active', labelFilter: null, searchQuery: '', searchResults: [] });
       await get().loadNotes();
       set({ activeNoteId: note.id });
       persistLastNoteId(note.id);
       void get().loadNoteCounts();
+      return note;
     } catch (error) {
       set({ error: messageFrom(error, 'Failed to create note') });
+      return null;
     }
   },
 

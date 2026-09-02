@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAiStore } from '../store/useAiStore';
 import {
   useUIStore,
   NOTE_FONT_SIZE_MIN,
@@ -169,6 +170,22 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
   const [keyModeError, setKeyModeError] = useState<string | null>(null);
   const [keyModeLoadFailed, setKeyModeLoadFailed] = useState(false);
   const [isSavingKeyMode, setIsSavingKeyMode] = useState(false);
+
+  const aiEnabled = useAiStore((state) => state.enabled);
+  const setAiEnabled = useAiStore((state) => state.setEnabled);
+  const hasApiKey = useAiStore((state) => state.hasApiKey);
+  const isSavingApiKey = useAiStore((state) => state.isSavingApiKey);
+  const apiKeyError = useAiStore((state) => state.apiKeyError);
+  const saveApiKey = useAiStore((state) => state.saveApiKey);
+  const removeApiKey = useAiStore((state) => state.removeApiKey);
+  const clearApiKeyError = useAiStore((state) => state.clearApiKeyError);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+
+  const handleSaveApiKey = async (): Promise<void> => {
+    if (!apiKeyDraft.trim()) return;
+    const succeeded = await saveApiKey(apiKeyDraft.trim());
+    if (succeeded) setApiKeyDraft('');
+  };
 
   useEffect(() => {
     keyModeService
@@ -394,6 +411,69 @@ function SettingsModal({ onClose }: SettingsModalProps): React.JSX.Element {
               </kbd>
             </div>
           ))}
+        </div>
+
+        <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
+          AI features
+        </span>
+        <p className="mb-2 text-[11.5px] text-[var(--text-tertiary)]">
+          Using the AI chat or the selection transform popup sends the relevant chat message or
+          selected text to Anthropic&apos;s API. No note content is sent automatically otherwise.
+        </p>
+        <div className="mb-2.5 divide-y divide-[var(--border)] border-t border-b border-[var(--border)]">
+          <ToggleRow
+            label="Enable AI features"
+            description="Turns on the Ask AI chat modal and the selection transform popup"
+            checked={aiEnabled}
+            onChange={setAiEnabled}
+          />
+        </div>
+        <div className="mb-4 rounded-md border border-[var(--border)] p-2.5">
+          {hasApiKey ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12.5px] text-[var(--text-secondary)]">
+                Anthropic API key saved.
+              </span>
+              <button
+                type="button"
+                disabled={isSavingApiKey}
+                onClick={() => void removeApiKey()}
+                className="shrink-0 rounded-md border border-[var(--border)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={apiKeyDraft}
+                onChange={(event) => {
+                  setApiKeyDraft(event.target.value);
+                  if (apiKeyError) clearApiKeyError();
+                }}
+                placeholder="sk-ant-…"
+                className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg-input)] px-2.5 py-2 text-[12.5px] text-[var(--text-primary)] outline-none"
+              />
+              <button
+                type="button"
+                disabled={!apiKeyDraft.trim() || isSavingApiKey}
+                onClick={() => void handleSaveApiKey()}
+                className="shrink-0 rounded-md bg-[var(--accent)] px-3 py-1.5 text-[12px] font-semibold text-[var(--text-on-accent)] transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          )}
+          {apiKeyError && (
+            <p className="m-0 mt-2 text-[11.5px] text-[#DC2626]" role="alert">
+              {apiKeyError}
+            </p>
+          )}
+          <p className="m-0 mt-2 text-[11px] text-[var(--text-tertiary)]">
+            Stored securely via Windows Credential Manager — never written to StoryNote&apos;s
+            database or logs.
+          </p>
         </div>
 
         <span className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text-secondary)]">
