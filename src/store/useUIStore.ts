@@ -228,7 +228,7 @@ export const NOTE_ZOOM_MAX = 2;
 export const NOTE_ZOOM_DEFAULT = 1;
 export const NOTE_ZOOM_STEP = 0.1;
 
-export const NOTE_LINE_HEIGHT_MIN = 1.2;
+export const NOTE_LINE_HEIGHT_MIN = 1;
 export const NOTE_LINE_HEIGHT_MAX = 2.2;
 export const NOTE_LINE_HEIGHT_DEFAULT = 1.75;
 export const NOTE_LINE_HEIGHT_STEP = 0.05;

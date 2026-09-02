@@ -684,11 +684,11 @@ describe('useUIStore', () => {
       expect(api.set).toHaveBeenCalledWith('note_line_height', '2');
     });
 
-    it('clamps setNoteLineHeight to [1.2, 2.2]', () => {
+    it('clamps setNoteLineHeight to [1, 2.2]', () => {
       installMockApi();
 
       useUIStore.getState().setNoteLineHeight(0.5);
-      expect(useUIStore.getState().noteLineHeight).toBe(1.2);
+      expect(useUIStore.getState().noteLineHeight).toBe(1);
 
       useUIStore.getState().setNoteLineHeight(5);
       expect(useUIStore.getState().noteLineHeight).toBe(2.2);
