@@ -527,7 +527,9 @@ export function registerNotesHandlers(db: Database.Database, lockSession: LockSe
   ipcMain.handle(IPC_CHANNELS.notes.export, (_event, input) =>
     handleExport(db, lockSession, input),
   );
-  ipcMain.handle(IPC_CHANNELS.notes.import, (_event, input) => handleImport(db, lockSession, input));
+  ipcMain.handle(IPC_CHANNELS.notes.import, (_event, input) =>
+    handleImport(db, lockSession, input),
+  );
   ipcMain.handle(IPC_CHANNELS.notes.lock, (_event, input) => handleLock(db, lockSession, input));
   ipcMain.handle(IPC_CHANNELS.notes.unlock, (_event, input) =>
     handleUnlock(db, lockSession, input),
