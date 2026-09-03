@@ -178,7 +178,7 @@ test('the Settings panel Always on top toggle takes effect immediately, and pers
       app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop());
     expect(await isAlwaysOnTop()).toBe(false);
 
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     const alwaysOnTopToggle = dialog.getByRole('checkbox', { name: /Always on top/ });
     await expect(alwaysOnTopToggle).not.toBeChecked();
@@ -326,7 +326,7 @@ test('compact mode reduces note row height and persists the choice', async () =>
     const heightBefore = (await row.boundingBox())?.height;
     expect(heightBefore).toBeGreaterThan(0);
 
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     const compactToggle = dialog.getByRole('checkbox', { name: /Compact mode/ });
     await expect(compactToggle).not.toBeChecked();

@@ -79,7 +79,7 @@ test('enabling and disabling a master password through the Settings panel works 
 
   try {
     const page = await app.firstWindow();
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     await expect(
       dialog.getByText('No master password set — StoryNote unlocks automatically.'),
@@ -114,9 +114,9 @@ test('enabling and disabling a master password through the Settings panel works 
     ).toBeVisible();
     await page2.getByPlaceholder('Enter master password').fill('ui-master-password');
     await page2.getByRole('button', { name: 'Unlock', exact: true }).click();
-    await expect(page2.getByTitle('Settings')).toBeVisible();
+    await expect(page2.getByTitle('Settings', { exact: true })).toBeVisible();
 
-    await page2.getByTitle('Settings').click();
+    await page2.getByTitle('Settings', { exact: true }).click();
     const dialog2 = page2.getByRole('dialog', { name: 'Settings' });
     await expect(dialog2.getByText('StoryNote is protected by a master password.')).toBeVisible();
     await dialog2.getByRole('button', { name: 'Disable' }).click();

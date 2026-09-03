@@ -72,7 +72,7 @@ test('font size, zoom, and content width settings apply live and persist across 
     await page.locator('.tiptap').click();
     await page.keyboard.type('Sizing check');
 
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
 
     const fontSizeSlider = dialog.locator('input[type="range"]').nth(0);
@@ -117,7 +117,7 @@ test('zoom Reset button appears once changed and restores 100%', async () => {
 
   try {
     const page = await app.firstWindow();
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
 
     await expect(dialog.getByRole('button', { name: 'Reset' })).toHaveCount(0);
@@ -146,7 +146,7 @@ test('font family preset applies to the CSS variable driving note content', asyn
 
   try {
     const page = await app.firstWindow();
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
 
     await dialog.getByRole('button', { name: 'Monospace' }).click();
@@ -305,7 +305,7 @@ test("spell check setting toggles the editor's spellcheck attribute immediately"
     await page.locator('.tiptap').click();
     await expect(page.locator('.tiptap')).toHaveAttribute('spellcheck', 'true');
 
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     await dialog.getByLabel('Spell check').uncheck();
     await dialog.getByRole('button', { name: 'Close' }).click();
@@ -321,7 +321,7 @@ test('the Enhancements-phase font presets (Palatino/Verdana/Courier) apply their
 
   try {
     const page = await app.firstWindow();
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
 
     await dialog.getByRole('button', { name: 'Verdana' }).click();

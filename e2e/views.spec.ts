@@ -251,7 +251,9 @@ test('sidebar view reflows both panes instead of clipping at the minimum window 
       });
 
     // Sidebar's own controls (Settings, New note) still fit.
-    await expect.poll(() => fitsInViewport(page.getByTitle('Settings'))).toBe(true);
+    await expect
+      .poll(() => fitsInViewport(page.getByTitle('Settings', { exact: true })))
+      .toBe(true);
     await expect
       .poll(() => fitsInViewport(page.getByRole('button', { name: 'New note' }).first()))
       .toBe(true);
