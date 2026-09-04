@@ -37,6 +37,18 @@ export const IPC_CHANNELS = {
   search: {
     query: 'storynote:search:query',
   },
+  // ADR-002 — the app's sole outbound-network exception (architecture.md's
+  // Stack Summary). getStatus/setApiKey/clearApiKey manage the OS-stored
+  // Anthropic API key (electron/db/aiCredentials.ts); chat/transform are the
+  // two handlers that actually call api.anthropic.com, gated on
+  // settings.ai_enabled *and* a stored key.
+  ai: {
+    getStatus: 'storynote:ai:get-status',
+    setApiKey: 'storynote:ai:set-api-key',
+    clearApiKey: 'storynote:ai:clear-api-key',
+    chat: 'storynote:ai:chat',
+    transform: 'storynote:ai:transform',
+  },
   // Main -> renderer push (not a request/response invoke like every channel
   // above) — electron/shortcuts.ts sends on this when a global shortcut
   // fires; preload.ts exposes it as shortcuts.onTrigger(), never raw

@@ -10,6 +10,16 @@
   --font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
 }
 
+/* Extra note-content font presets (Enhancements phase) — alternates to the
+   three above, kept as their own stacks (not reused from --font-ui/
+   --font-content/--font-mono) so picking one only changes note content, not
+   the app's own chrome. System fonts only, same reasoning as above. */
+:root {
+  --font-note-verdana: Verdana, 'DejaVu Sans', sans-serif;
+  --font-note-palatino: 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+  --font-note-courier: 'Courier New', Courier, monospace;
+}
+
 /* ---- Theme tokens ----
    Plain custom properties (not Tailwind's @theme) since these switch at
    runtime via the [data-theme] attribute useUIStore.ts sets on <html> —
@@ -54,19 +64,25 @@
   --search-match-current-text: #1a1200;
 }
 
+/* True neutral charcoal/black — every background, border, and text value
+   below is a pure gray (equal R/G/B), not the slightly blue-tinted slate
+   this replaced, so dark mode reads as black/charcoal rather than navy.
+   --bg-active/--accent-soft are left as accent-tinted (matching light mode's
+   own selection treatment) since they're paired with --accent text/icons to
+   signal selection, not part of the base surface palette. */
 [data-theme='dark'] {
-  --bg-app: #16181d;
-  --bg-surface: #1d2026;
-  --bg-surface-raised: #23262e;
-  --bg-sidebar: #1a1c22;
-  --bg-hover: #2a2e37;
+  --bg-app: #0d0d0d;
+  --bg-surface: #161616;
+  --bg-surface-raised: #1f1f1f;
+  --bg-sidebar: #050505;
+  --bg-hover: #2a2a2a;
   --bg-active: #23304d;
-  --bg-input: #23262e;
-  --border: #2c2f37;
-  --border-strong: #3a3e48;
-  --text-primary: #edeef1;
-  --text-secondary: #9ca3af;
-  --text-tertiary: #6b7280;
+  --bg-input: #1f1f1f;
+  --border: #2a2a2a;
+  --border-strong: #3d3d3d;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #707070;
   --text-on-accent: #ffffff;
   --scrim: rgba(0, 0, 0, 0.6);
   --accent-soft: #1b2740;

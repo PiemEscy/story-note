@@ -3,6 +3,7 @@ import { useNoteStore } from '../store/useNoteStore';
 import type { NoteFilter } from '../store/useNoteStore';
 import { useLabelStore, resolveLabelColor } from '../store/useLabelStore';
 import type { LabelRow } from '../services/labelsService';
+import { useAiStore } from '../store/useAiStore';
 import {
   useUIStore,
   SIDEBAR_MIN_WIDTH,
@@ -10,6 +11,7 @@ import {
   SIDEBAR_COLLAPSED_WIDTH,
 } from '../store/useUIStore';
 import {
+  AiSparkleIcon,
   AllNotesIcon,
   ArchivedIcon,
   TrashNavIcon,
@@ -21,6 +23,7 @@ import {
   SidebarCollapseIcon,
   SidebarExpandIcon,
 } from './icons';
+import AiChatModal from './AiChatModal';
 import LabelModal from './LabelModal';
 import SettingsModal from './SettingsModal';
 
@@ -61,6 +64,8 @@ function Sidebar(): React.JSX.Element {
   // editing (with a delete option); null keeps it closed.
   const [editingLabel, setEditingLabel] = useState<LabelRow | 'new' | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+  const isAiAvailable = useAiStore((state) => state.isAvailable());
 
   // "Accessible from anywhere" (Phase 7): Sidebar is always mounted
   // regardless of filter/view, so a persistent search box here already
@@ -364,6 +369,25 @@ function Sidebar(): React.JSX.Element {
         )}
       </div>
 
+      <div className={`px-2 pb-1 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+        <button
+          type="button"
+          disabled={!isAiAvailable}
+          title={
+            isAiAvailable
+              ? 'Ask AI or create a note with AI'
+              : 'Add an Anthropic API key in Settings to use AI features'
+          }
+          onClick={() => setIsAiChatOpen(true)}
+          className={`flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-hover)] text-[12.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[var(--bg-hover)] disabled:hover:text-[var(--text-secondary)] ${
+            sidebarCollapsed ? 'h-8 w-8 shrink-0 justify-center' : 'w-full px-2.5 py-2'
+          }`}
+        >
+          <AiSparkleIcon className="h-3.5 w-3.5 shrink-0 text-[#7C3AED]" />
+          {!sidebarCollapsed && 'Ask AI'}
+        </button>
+      </div>
+
       <div
         className={`mt-auto flex items-center gap-2 border-t border-[var(--border)] p-2.5 ${
           sidebarCollapsed ? 'flex-col' : ''
@@ -384,12 +408,9 @@ function Sidebar(): React.JSX.Element {
           type="button"
           title="New note"
           onClick={() => void createNote()}
-          className={`flex items-center justify-center gap-1.5 rounded-md border border-[var(--border)] text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-            sidebarCollapsed ? 'h-8 w-8 shrink-0' : 'flex-1 px-2 py-1.5'
-          }`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
           <NewNoteIcon className="h-3.5 w-3.5" />
-          {!sidebarCollapsed && 'New note'}
         </button>
         <button
           type="button"
@@ -409,6 +430,7 @@ function Sidebar(): React.JSX.Element {
       )}
 
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      {isAiChatOpen && <AiChatModal onClose={() => setIsAiChatOpen(false)} />}
     </aside>
   );
 }

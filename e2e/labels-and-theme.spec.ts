@@ -198,14 +198,14 @@ test('selecting a theme in Settings applies it and persists the choice', async (
     // document.documentElement.dataset.theme is set synchronously at module
     // load (main.tsx), but a note-taking app being "loaded" for the rest of
     // this test means the Sidebar's own controls are up.
-    await expect(page.getByTitle('Settings')).toBeVisible();
+    await expect(page.getByTitle('Settings', { exact: true })).toBeVisible();
 
     const readTheme = (): Promise<string | undefined> =>
       page.evaluate(() => document.documentElement.dataset.theme);
     const initial = await readTheme();
     expect(['light', 'dark']).toContain(initial);
 
-    await page.getByTitle('Settings').click();
+    await page.getByTitle('Settings', { exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     await expect(dialog).toBeVisible();
 

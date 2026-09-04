@@ -6,6 +6,7 @@ import ToastContainer from './components/ToastContainer';
 import { useNoteStore } from './store/useNoteStore';
 import { useLabelStore } from './store/useLabelStore';
 import { useUIStore } from './store/useUIStore';
+import { useAiStore } from './store/useAiStore';
 
 function App(): React.JSX.Element {
   const loadNotes = useNoteStore((state) => state.loadNotes);
@@ -25,12 +26,14 @@ function App(): React.JSX.Element {
   const initAlwaysOnTop = useUIStore((state) => state.initAlwaysOnTop);
   const initLaunchOnStartup = useUIStore((state) => state.initLaunchOnStartup);
   const initStartMinimized = useUIStore((state) => state.initStartMinimized);
+  const initSpellCheckEnabled = useUIStore((state) => state.initSpellCheckEnabled);
   const initNoteFontFamily = useUIStore((state) => state.initNoteFontFamily);
   const initNoteFontSize = useUIStore((state) => state.initNoteFontSize);
   const initNoteContentWidth = useUIStore((state) => state.initNoteContentWidth);
   const initNoteZoom = useUIStore((state) => state.initNoteZoom);
   const initNoteLineHeight = useUIStore((state) => state.initNoteLineHeight);
   const initDefaultLabelId = useUIStore((state) => state.initDefaultLabelId);
+  const loadAiStatus = useAiStore((state) => state.loadStatus);
 
   useEffect(() => {
     // initLastNote needs the 'active' list actually loaded before it can
@@ -53,12 +56,14 @@ function App(): React.JSX.Element {
     void initAlwaysOnTop();
     void initLaunchOnStartup();
     void initStartMinimized();
+    void initSpellCheckEnabled();
     void initNoteFontFamily();
     void initNoteFontSize();
     void initNoteContentWidth();
     void initNoteZoom();
     void initNoteLineHeight();
     void initDefaultLabelId();
+    void loadAiStatus();
   }, [
     loadNotes,
     loadNoteCounts,
@@ -73,12 +78,14 @@ function App(): React.JSX.Element {
     initAlwaysOnTop,
     initLaunchOnStartup,
     initStartMinimized,
+    initSpellCheckEnabled,
     initNoteFontFamily,
     initNoteFontSize,
     initNoteContentWidth,
     initNoteZoom,
     initNoteLineHeight,
     initDefaultLabelId,
+    loadAiStatus,
   ]);
 
   // Phase 10's global keyboard shortcuts (electron/shortcuts.ts) fire from

@@ -3,11 +3,13 @@ import { useNoteStore } from '../store/useNoteStore';
 import type { PublicNoteRow } from '../services/notesService';
 import { useLabelStore, resolveLabelColor } from '../store/useLabelStore';
 import { useUIStore } from '../store/useUIStore';
+import { useAiChatStore } from '../store/useAiChatStore';
 import { formatShortDate, formatRelativeTime } from '../utils/formatDate';
 import { useNoteEditor } from '../editor/useNoteEditor';
 import EditorToolbar from '../editor/EditorToolbar';
 import NoteEditor from '../editor/NoteEditor';
 import NoteSearchBar from '../editor/NoteSearchBar';
+import AiBadge from './AiBadge';
 import ConfirmDialog from './ConfirmDialog';
 import LockedNotePanel from './LockedNotePanel';
 import LockNoteModal from './LockNoteModal';
@@ -52,6 +54,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   const labels = useLabelStore((state) => state.labels);
   const view = useUIStore((state) => state.view);
   const closeNoteDetail = useUIStore((state) => state.closeNoteDetail);
+  const spellCheckEnabled = useUIStore((state) => state.spellCheckEnabled);
 
   // Locked-and-not-yet-unlocked-this-session: the topbar (label chip, more
   // options) still renders per storynote-ui-reference.html's #lockedPanel
@@ -59,6 +62,9 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
   // there's nothing meaningful to format/edit until unlocked, and note.content
   // is server-redacted to '' anyway (electron/ipc/notesHandlers.ts).
   const isLocked = note.is_locked === 1 && !unlockedNoteIds.has(note.id);
+  // Session-only marker — see useAiChatStore.ts's aiOriginatedNoteIds doc
+  // comment for why this isn't a persisted column.
+  const isAiOriginated = useAiChatStore((state) => state.aiOriginatedNoteIds.has(note.id));
 
   // List/Details/Grid/Large Grid have no inline list-alongside-editor layout
   // (see EditorPanel's own guard below) — opening a note from one of those
@@ -132,7 +138,11 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
     [scheduleSave],
   );
 
-  const editor = useNoteEditor({ content: note.content, onUpdate: handleEditorUpdate });
+  const editor = useNoteEditor({
+    content: note.content,
+    onUpdate: handleEditorUpdate,
+    spellCheckEnabled,
+  });
 
   useEffect(() => {
     return () => {
@@ -338,6 +348,7 @@ function NoteEditorForm({ note, filter }: NoteEditorFormProps): React.JSX.Elemen
                 {formatRelativeTime(note.updated_at)}
               </span>
             </div>
+            {isAiOriginated && <AiBadge className="mt-0.5" />}
           </>
         )}
 

@@ -57,7 +57,7 @@ test('collapsing the sidebar hides text labels but keeps icons; expanding restor
     await expect(sidebar.getByTitle('All Notes')).toBeVisible();
     await expect(sidebar.getByText('Labels', { exact: true })).toHaveCount(0);
     await expect(sidebar.getByText('Settings', { exact: true })).toHaveCount(0);
-    await expect(sidebar.getByTitle('Settings')).toBeVisible();
+    await expect(sidebar.getByTitle('Settings', { exact: true })).toBeVisible();
 
     await expect
       .poll(async () => (await sidebar.boundingBox())?.width)

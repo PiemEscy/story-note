@@ -21,12 +21,21 @@ function isViewMode(value: string | undefined): value is ViewMode {
   return VIEW_MODES.includes(value as ViewMode);
 }
 
-// Note Editor Updates — note content display settings. Three presets rather
-// than a free-text font picker (no font-browsing UI exists, and these three
-// already match this app's own established --font-content/--font-ui/
-// --font-mono stacks from main.css, so no new font stack needed).
-export type NoteFontFamily = 'serif' | 'sans' | 'mono';
-const NOTE_FONT_FAMILIES: NoteFontFamily[] = ['serif', 'sans', 'mono'];
+// Note Editor Updates — note content display settings. Presets rather than
+// a free-text font picker (no font-browsing UI exists). The original three
+// reuse this app's own established --font-content/--font-ui/--font-mono
+// stacks from main.css; the three added in the Enhancements phase
+// (palatino/verdana/courier) get their own dedicated --font-note-* stacks
+// instead, so they can't also change the app's own chrome typography.
+export type NoteFontFamily = 'serif' | 'sans' | 'mono' | 'palatino' | 'verdana' | 'courier';
+const NOTE_FONT_FAMILIES: NoteFontFamily[] = [
+  'serif',
+  'sans',
+  'mono',
+  'palatino',
+  'verdana',
+  'courier',
+];
 
 function isNoteFontFamily(value: string | undefined): value is NoteFontFamily {
   return NOTE_FONT_FAMILIES.includes(value as NoteFontFamily);
@@ -36,6 +45,9 @@ const NOTE_FONT_FAMILY_CSS_VALUE: Record<NoteFontFamily, string> = {
   serif: 'var(--font-content)',
   sans: 'var(--font-ui)',
   mono: 'var(--font-mono)',
+  palatino: 'var(--font-note-palatino)',
+  verdana: 'var(--font-note-verdana)',
+  courier: 'var(--font-note-courier)',
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -160,6 +172,15 @@ interface UIState {
   setStartMinimized: (value: boolean) => void;
   initStartMinimized: () => Promise<void>;
 
+  // Enhancements phase — was previously always on (hardcoded), with no way
+  // to turn it off. Applied directly to the TipTap DOM node by
+  // useNoteEditor.ts rather than as a CSS custom property like the
+  // note-content settings below, since spellcheck is a DOM/browser
+  // attribute, not a style.
+  spellCheckEnabled: boolean;
+  setSpellCheckEnabled: (value: boolean) => void;
+  initSpellCheckEnabled: () => Promise<void>;
+
   // Note Editor Updates — font family/size, content-column width ("margin"),
   // and zoom. All four apply globally (every note, not per-note) and
   // persist through settingsService, mirroring compactMode/theme exactly.
@@ -228,7 +249,7 @@ export const NOTE_ZOOM_MAX = 2;
 export const NOTE_ZOOM_DEFAULT = 1;
 export const NOTE_ZOOM_STEP = 0.1;
 
-export const NOTE_LINE_HEIGHT_MIN = 1.2;
+export const NOTE_LINE_HEIGHT_MIN = 1;
 export const NOTE_LINE_HEIGHT_MAX = 2.2;
 export const NOTE_LINE_HEIGHT_DEFAULT = 1.75;
 export const NOTE_LINE_HEIGHT_STEP = 0.05;
@@ -441,6 +462,28 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
     if (get().startMinimized !== before) return;
     set({ startMinimized });
+  },
+
+  spellCheckEnabled: true,
+
+  setSpellCheckEnabled: (value) => {
+    set({ spellCheckEnabled: value });
+    settingsService.set('spell_check_enabled', String(value)).catch((error: unknown) => {
+      console.error('[useUIStore] failed to persist spell_check_enabled setting', error);
+    });
+  },
+
+  initSpellCheckEnabled: async () => {
+    const before = get().spellCheckEnabled;
+    let spellCheckEnabled = before;
+    try {
+      const stored = await settingsService.get('spell_check_enabled');
+      spellCheckEnabled = parseBooleanSetting(stored, before);
+    } catch (error) {
+      console.error('[useUIStore] failed to load persisted spell_check_enabled setting', error);
+    }
+    if (get().spellCheckEnabled !== before) return;
+    set({ spellCheckEnabled });
   },
 
   noteFontFamily: 'serif',

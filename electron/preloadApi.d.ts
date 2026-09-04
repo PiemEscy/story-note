@@ -1,6 +1,7 @@
 import type { CreateLabelInput, UpdateLabelInput } from './db/labels';
 import type { CreateNoteInput, ListNotesOptions, NoteCounts, UpdateNoteInput } from './db/notes';
 import type { LabelRow } from './db/types';
+import type { AiStatus, TransformAction } from './ipc/aiHandlers';
 import type { ImportResult, PublicNoteRow } from './ipc/notesHandlers';
 import type { IpcResult } from './ipc/types';
 import type { ShortcutAction } from './shortcuts';
@@ -41,6 +42,19 @@ export interface StoryNoteAPI {
   };
   search: {
     query: (query: string) => Promise<IpcResult<PublicNoteRow[]>>;
+  };
+  ai: {
+    getStatus: () => Promise<IpcResult<AiStatus>>;
+    setApiKey: (apiKey: string) => Promise<IpcResult<void>>;
+    clearApiKey: () => Promise<IpcResult<void>>;
+    chat: (
+      messages: { role: 'user' | 'assistant'; content: string }[],
+    ) => Promise<IpcResult<{ reply: string }>>;
+    transform: (input: {
+      selectedText: string;
+      action: TransformAction;
+      instructions?: string;
+    }) => Promise<IpcResult<{ result: string }>>;
   };
   shortcuts: {
     onTrigger: (callback: (action: ShortcutAction) => void) => () => void;

@@ -1,7 +1,8 @@
-import { Extension } from '@tiptap/core';
+﻿import { Extension } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { sinkListItem, liftListItem } from '@tiptap/pm/schema-list';
 import { buildTextIndex, findValidMatch, WORD_CHAR } from './textSearch';
 
 export interface ContentShortcutDisplay {
@@ -24,6 +25,8 @@ export const CONTENT_SHORTCUTS: ContentShortcutDisplay[] = [
   { action: 'Duplicate block above', keybinding: 'Shift+Alt+↑' },
   { action: 'Duplicate block below', keybinding: 'Shift+Alt+↓' },
   { action: 'Find in note', keybinding: 'Ctrl+f' },
+  { action: 'Indent / nest list item', keybinding: 'Tab' },
+  { action: 'Outdent / un-nest list item', keybinding: 'Shift+Tab' },
 ];
 
 interface CommandProps {
@@ -173,6 +176,67 @@ export function selectNextOccurrenceCommand({ state, dispatch }: CommandProps): 
   return true;
 }
 
+// --- Tab / Shift-Tab: indent / outdent ---------------------------------
+//
+// Without a handler here, Tab falls through to the browser's default
+// contentEditable behavior — moving DOM focus to the next focusable element
+// (a toolbar button) instead of doing anything to the note content. This
+// extension's keymap plugin runs *before* @tiptap/extension-table's and
+// @tiptap/extension-list's own (see useNoteEditor.ts's extension order —
+// TipTap builds one ProseMirror keymap plugin per extension, earlier-
+// registered extensions ending up later in the merged, reversed plugin
+// list), so both need explicit handling here rather than being left to run
+// on their own:
+//  - Inside a table cell, Table already binds Tab/Shift-Tab to cell
+//    navigation (goToNextCell/goToPreviousCell) — step aside by returning
+//    false so its own, later-checked binding gets a chance to run.
+//  - Inside a list item, replicate sinkListItem/liftListItem (the same
+//    commands @tiptap/extension-list's ListItem binds Tab/Shift-Tab to)
+//    rather than deferring to it, since this handler runs first regardless.
+//  - Anywhere else, there's no block-level "indent" concept in this schema
+//    (no blockquote/indent node), so Tab inserts a fixed run of
+//    non-breaking spaces — plain spaces would collapse under this app's
+//    normal CSS white-space handling, but U+00A0 always renders — and
+//    Shift-Tab removes a trailing run of them immediately before the
+//    cursor, if there is one. Both always return true (never false) here,
+//    so the key is swallowed either way and never reaches the DOM's
+//    default focus-navigation behavior.
+const INDENT_UNIT = '\u00A0\u00A0\u00A0\u00A0';
+
+function isInsideTable(state: EditorState): boolean {
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    if ($from.node(depth).type.name === 'table') return true;
+  }
+  return false;
+}
+
+export function indentCommand({ state, dispatch }: CommandProps): boolean {
+  if (isInsideTable(state)) return false;
+
+  const { listItem } = state.schema.nodes;
+  if (listItem && sinkListItem(listItem)(state, dispatch)) return true;
+
+  if (dispatch) dispatch(state.tr.insertText(INDENT_UNIT));
+  return true;
+}
+
+export function outdentCommand({ state, dispatch }: CommandProps): boolean {
+  if (isInsideTable(state)) return false;
+
+  const { listItem } = state.schema.nodes;
+  if (listItem && liftListItem(listItem)(state, dispatch)) return true;
+
+  const { $from } = state.selection;
+  const textBefore = $from.parent.textBetween(0, $from.parentOffset);
+  const trailingIndent = /[\u00A0 ]+$/.exec(textBefore);
+  if (trailingIndent && dispatch) {
+    const removeLength = Math.min(trailingIndent[0].length, INDENT_UNIT.length);
+    dispatch(state.tr.delete($from.pos - removeLength, $from.pos));
+  }
+  return true;
+}
+
 // Scoped to note content automatically: TipTap's addKeyboardShortcuts only
 // fires while the editor itself has focus, so this never intercepts these
 // keys anywhere else in the app (a plain window keydown listener would).
@@ -186,6 +250,8 @@ export const ContentShortcuts = Extension.create({
       'Alt-ArrowDown': () => this.editor.commands.command(moveBlock('down')),
       'Shift-Alt-ArrowUp': () => this.editor.commands.command(duplicateBlock('above')),
       'Shift-Alt-ArrowDown': () => this.editor.commands.command(duplicateBlock('below')),
+      Tab: () => this.editor.commands.command(indentCommand),
+      'Shift-Tab': () => this.editor.commands.command(outdentCommand),
     };
   },
 });

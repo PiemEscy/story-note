@@ -50,6 +50,7 @@ beforeEach(() => {
     alwaysOnTop: false,
     launchOnStartup: false,
     startMinimized: false,
+    spellCheckEnabled: true,
     noteFontFamily: 'serif',
     noteFontSize: 16.5,
     noteContentWidth: 720,
@@ -501,6 +502,40 @@ describe('useUIStore', () => {
     });
   });
 
+  describe('spell check', () => {
+    it('defaults spellCheckEnabled to true', () => {
+      expect(useUIStore.getState().spellCheckEnabled).toBe(true);
+    });
+
+    it('updates spellCheckEnabled via setSpellCheckEnabled, and persists the choice', async () => {
+      const api = installMockApi();
+
+      useUIStore.getState().setSpellCheckEnabled(false);
+
+      expect(useUIStore.getState().spellCheckEnabled).toBe(false);
+      await Promise.resolve();
+      expect(api.set).toHaveBeenCalledWith('spell_check_enabled', 'false');
+    });
+
+    describe('initSpellCheckEnabled', () => {
+      it('applies a persisted "false" value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: 'false' }) });
+
+        await useUIStore.getState().initSpellCheckEnabled();
+
+        expect(useUIStore.getState().spellCheckEnabled).toBe(false);
+      });
+
+      it('falls back to the current default for a missing persisted value', async () => {
+        installMockApi({ get: vi.fn().mockResolvedValue({ ok: true, data: undefined }) });
+
+        await useUIStore.getState().initSpellCheckEnabled();
+
+        expect(useUIStore.getState().spellCheckEnabled).toBe(true);
+      });
+    });
+  });
+
   describe('note font family', () => {
     it('defaults noteFontFamily to serif', () => {
       expect(useUIStore.getState().noteFontFamily).toBe('serif');
@@ -517,6 +552,15 @@ describe('useUIStore', () => {
       );
       await Promise.resolve();
       expect(api.set).toHaveBeenCalledWith('note_font_family', 'mono');
+    });
+
+    it('applies one of the Enhancements-phase presets to its own dedicated stack', () => {
+      useUIStore.getState().setNoteFontFamily('palatino');
+
+      expect(useUIStore.getState().noteFontFamily).toBe('palatino');
+      expect(document.documentElement.style.getPropertyValue('--note-font-family')).toBe(
+        'var(--font-note-palatino)',
+      );
     });
 
     describe('initNoteFontFamily', () => {
@@ -684,11 +728,11 @@ describe('useUIStore', () => {
       expect(api.set).toHaveBeenCalledWith('note_line_height', '2');
     });
 
-    it('clamps setNoteLineHeight to [1.2, 2.2]', () => {
+    it('clamps setNoteLineHeight to [1, 2.2]', () => {
       installMockApi();
 
       useUIStore.getState().setNoteLineHeight(0.5);
-      expect(useUIStore.getState().noteLineHeight).toBe(1.2);
+      expect(useUIStore.getState().noteLineHeight).toBe(1);
 
       useUIStore.getState().setNoteLineHeight(5);
       expect(useUIStore.getState().noteLineHeight).toBe(2.2);

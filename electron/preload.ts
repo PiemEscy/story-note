@@ -48,6 +48,13 @@ const storyNoteAPI = {
   search: {
     query: (query: string) => ipcRenderer.invoke(IPC_CHANNELS.search.query, query),
   },
+  ai: {
+    getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.ai.getStatus),
+    setApiKey: (apiKey: string) => ipcRenderer.invoke(IPC_CHANNELS.ai.setApiKey, { apiKey }),
+    clearApiKey: () => ipcRenderer.invoke(IPC_CHANNELS.ai.clearApiKey),
+    chat: (messages: unknown) => ipcRenderer.invoke(IPC_CHANNELS.ai.chat, { messages }),
+    transform: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.ai.transform, input),
+  },
   shortcuts: {
     // Main -> renderer push, not invoke/response — the only channel of this
     // shape in the app. Wraps ipcRenderer.on() in a named method (never
