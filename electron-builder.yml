@@ -15,10 +15,14 @@ asarUnpack:
   - 'resources/**'
 win:
   executableName: StoryNote
-  target: nsis
+  target:
+    - nsis
+    - portable
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+portable:
+  artifactName: ${name}-${version}-portable.${ext}
 npmRebuild: false
