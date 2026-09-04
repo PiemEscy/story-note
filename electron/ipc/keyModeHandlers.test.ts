@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handleGetKeyMode, handleSetOsMode, handleSetPasswordMode } from './keyModeHandlers';
 import { createTestDatabase, createTestCredentialIdentity } from '../db/testHelpers';
-import { readKeyMetadata } from '../db/keys';
+import { clearKeyFromOS, readKeyMetadata } from '../db/keys';
 
 // switchToPasswordMode/switchToOsMode's own rekey mechanics (rollback on
 // failure, OS-credential cleanup, ...) are already thoroughly covered in
@@ -73,6 +73,7 @@ describe('handleSetOsMode', () => {
       expect(result).toEqual({ ok: true, data: undefined });
       expect(readKeyMetadata(userDataPath).keyMode).toBe('os');
     } finally {
+      clearKeyFromOS(identity);
       close();
     }
   });
